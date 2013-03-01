@@ -28,9 +28,9 @@ const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);
 const vec4 cold = vec4(0.0f, 0.f, 1.0f, 1.0f);
 const vec4 warm = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 
-vec4 tone(vec4 cwarm, vec4 ccold, vec3 nor)
+vec4 tone(vec4 cwarm, vec4 ccold)
 {
-    vec3 n = normalize(nor);
+    vec3 n = normalize(normal);
     vec3 l0 = normalize(light0_dir);
     vec3 l1 = normalize(light1_dir);
     vec3 l2 = normalize(light2_dir);
@@ -112,8 +112,8 @@ void main()
 
 
     if(gl_Color == keycolor)
-        gl_FragColor = gl_Color;
+        gl_FragColor = gl_Color * max(0.f, dot( normalize(light0_dir), normalize(normal) ) );
     else
-        gl_FragColor = vec4(tone(cwarm, ccold, normal).xyz, 1.f) * gl_Color;
+        gl_FragColor = vec4(tone(cwarm, ccold).xyz, 1.f) * gl_Color;
 
 }

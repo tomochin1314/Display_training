@@ -6,9 +6,9 @@
 
 BASEDIR=`pwd`
 
-BINDIR=${BASEDIR}/bin/phong_dbs_halo
-TASKDIRS="pretask task1 task2 task6"
-EXECUTABLES="singleitr_phong_dbs_halo multiviewitr_phong_dbs_halo multiwindowitr_phong_dbs_halo"
+BINDIR=${BASEDIR}/bin/phong
+TASKDIRS="pretask task1 task2 task3 task4 task5 task6"
+EXECUTABLES="singleitr_phong multiviewitr_phong multiwindowitr_phong"
 
 DATADIR=${BASEDIR}/data
 ALLNORMALCASEDATADIRS="${DATADIR}/normal_whole ${DATADIR}/normal_allfb"
@@ -33,6 +33,9 @@ TASKPROGIDFILE=${BASEDIR}/taskprogidfile
 TASKNO=0
 
 TUBERADIUS="0.4"
+# if use halo or depth encoded shadow
+HALO=1
+SHADOW=1
 
 function checkbins()
 {
@@ -181,7 +184,7 @@ function pretask()
 	#this is a trivial, actually virtual, task. It just show the introductory
 	#message of the tasks to follow
 
-	${BINDIR}/pretask/singleitr_phong_dbs_halo \
+	${BINDIR}/pretask/singleitr_phong \
 		-f ${NORMALCASEDATADIR}/region_for_task1/s1/cc/region_s1.data \
 		-t ${BINDIR}/pretask/tasktext \
 		-V 1>> $LOG 2>&1
@@ -214,7 +217,7 @@ function task1()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task1/singleitr_phong_dbs_halo \
+			${BINDIR}/task1/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/region_s${fixres}.data \
 			-s \
@@ -227,6 +230,8 @@ function task1()
 			-p ${TASKPROGIDFILE} \
 			-i ${flip} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -248,7 +253,7 @@ function task1()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task1/singleitr_phong_dbs_halo \
+			${BINDIR}/task1/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
 			-s \
@@ -261,6 +266,8 @@ function task1()
 			-p ${TASKPROGIDFILE} \
 			-i ${flip} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -305,7 +312,7 @@ function task2()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task2/singleitr_phong_dbs_halo \
+			${BINDIR}/task2/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/region_s${fixres}.data \
 			-s \
@@ -322,6 +329,8 @@ function task2()
 			-k ${CURKEY} \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -342,7 +351,7 @@ function task2()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task2/singleitr_phong_dbs_halo \
+			${BINDIR}/task2/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
 			-s \
@@ -359,6 +368,8 @@ function task2()
 			-k ${CURKEY} \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -394,7 +405,7 @@ function task3()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task3/singleitr_phong_dbs_halo \
+			${BINDIR}/task3/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/region_s${fixres}.data \
 			-s \
@@ -405,6 +416,8 @@ function task3()
 			-r ${TUBERADIUS} \
 			-k $((${dices[$di]}+1)) \
 			-t ${BINDIR}/task3/tasktext \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			let "di += 1"
@@ -422,7 +435,7 @@ function task3()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task3/singleitr_phong_dbs_halo \
+			${BINDIR}/task3/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
 			-s \
@@ -433,6 +446,8 @@ function task3()
 			-r ${TUBERADIUS} \
 			-k $((${dices[$di]}+1)) \
 			-t ${BINDIR}/task3/tasktext \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			let "di += 1"
@@ -470,7 +485,7 @@ function task4()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task4/singleitr_phong_dbs_halo \
+			${BINDIR}/task4/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/region_s${fixres}.data \
 			-s \
@@ -480,6 +495,8 @@ function task4()
 			-t ${BINDIR}/task4/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -497,7 +514,7 @@ function task4()
 
 			echo -e "\n##### with Normal case #####" >> $LOG
 			echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-			${BINDIR}/task4/singleitr_phong_dbs_halo \
+			${BINDIR}/task4/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
 			-s \
@@ -507,6 +524,8 @@ function task4()
 			-t ${BINDIR}/task4/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -568,7 +587,7 @@ function task5()
 				FIBERIDXFILE="fiberidx_compound_region_s${fixres}.data"
 			fi
 
-			${BINDIR}/task5/singleitr_phong_dbs_halo \
+			${BINDIR}/task5/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/region_s${fixres}.data \
 			-s \
@@ -578,6 +597,8 @@ function task5()
 			-t ${BINDIR}/task5/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -608,7 +629,7 @@ function task5()
 				FIBERIDXFILE="fiberidx_compound_region_s${fixres}.data"
 			fi
 
-			${BINDIR}/task5/singleitr_phong_dbs_halo \
+			${BINDIR}/task5/singleitr_phong \
 			-f \
 			${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
 			-s \
@@ -618,6 +639,8 @@ function task5()
 			-t ${BINDIR}/task5/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -674,17 +697,18 @@ function task6()
                         echo -e "\n##### with Normal case #####" >> $LOG
                         echo "##### under seeding resolution of ${n}x${n}x${n} #####" >> $LOG
                         echo "#####    when the choice is $CURCHOICE #### ">> $LOG
-                        ${BINDIR}/task6/singleitr_phong_dbs_halo \
+                        ${BINDIR}/task6/singleitr_phong \
                         -f \
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/region_s${n}.data \
                         -i \
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/fiberidx_${CURCHOICE}_s${n}.data \
                         -s \
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/skeleton_region_s${n}.data \
-
                         -t ${BINDIR}/task6/tasktext \
                         -p ${TASKPROGIDFILE} \
                         -r ${TUBERADIUS} \
+                        -a ${HALO} \
+                        -w ${SHADOW} \
                         -V 1>> $LOG 2>&1
 
                         if [ $? -ne 0 ];then
@@ -714,7 +738,7 @@ function task6()
                         echo -e "\n##### with Normal case #####" >> $LOG
                         echo "##### under seeding resolution of ${n}x${n}x${n} #####" >> $LOG
                         echo "#####    when the choice is $CURCHOICE #### ">> $LOG
-                        ${BINDIR}/task6/singleitr_phong_dbs_halo \
+                        ${BINDIR}/task6/singleitr_phong \
                         -f \
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/region_s${n}.data \
                         -i \
@@ -724,6 +748,8 @@ function task6()
                         -t ${BINDIR}/task6/tasktext \
                         -p ${TASKPROGIDFILE} \
                         -r ${TUBERADIUS} \
+                        -a ${HALO} \
+                        -w ${SHADOW} \
                         -V 1>> $LOG 2>&1
 
                         if [ $? -ne 0 ];then

@@ -220,6 +220,8 @@ protected:
     //
     friend class phong_t;
     phong_t *phong;
+    int m_nHalo;
+    int m_nShadow;
 
 
 public:

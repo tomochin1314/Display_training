@@ -99,18 +99,5 @@ vec4 phong(vec3 n)
 
 void main() 
 {
-    if(gl_FrontFacing)
-    {
-        if(gl_Color == keycolor)
-            gl_FragColor = gl_Color;
-        else
-            gl_FragColor = phong(normal);
-    }
-    else
-    {
-        if(gl_Color == keycolor)
-            gl_FragColor = gl_Color;
-        else
-            gl_FragColor = phong(-normal);
-    }
+    gl_FragColor = phong(normal);
 }

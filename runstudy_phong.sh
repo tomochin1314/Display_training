@@ -7,7 +7,7 @@
 BASEDIR=`pwd`
 
 BINDIR=${BASEDIR}/bin/phong
-TASKDIRS="pretask task1 task2 task6"
+TASKDIRS="pretask task1 task2 task3 task4 task5 task6"
 EXECUTABLES="singleitr_phong multiviewitr_phong multiwindowitr_phong"
 
 DATADIR=${BASEDIR}/data
@@ -33,6 +33,9 @@ TASKPROGIDFILE=${BASEDIR}/taskprogidfile
 TASKNO=0
 
 TUBERADIUS="0.4"
+# if use halo or depth encoded shadow
+HALO=0
+SHADOW=0
 
 function checkbins()
 {
@@ -227,6 +230,8 @@ function task1()
 			-p ${TASKPROGIDFILE} \
 			-i ${flip} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -261,6 +266,8 @@ function task1()
 			-p ${TASKPROGIDFILE} \
 			-i ${flip} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -322,6 +329,8 @@ function task2()
 			-k ${CURKEY} \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -359,6 +368,8 @@ function task2()
 			-k ${CURKEY} \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -405,6 +416,8 @@ function task3()
 			-r ${TUBERADIUS} \
 			-k $((${dices[$di]}+1)) \
 			-t ${BINDIR}/task3/tasktext \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			let "di += 1"
@@ -433,6 +446,8 @@ function task3()
 			-r ${TUBERADIUS} \
 			-k $((${dices[$di]}+1)) \
 			-t ${BINDIR}/task3/tasktext \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			let "di += 1"
@@ -480,6 +495,8 @@ function task4()
 			-t ${BINDIR}/task4/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -507,6 +524,8 @@ function task4()
 			-t ${BINDIR}/task4/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -578,6 +597,8 @@ function task5()
 			-t ${BINDIR}/task5/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -618,6 +639,8 @@ function task5()
 			-t ${BINDIR}/task5/tasktext \
 			-p ${TASKPROGIDFILE} \
 			-r ${TUBERADIUS} \
+            -a ${HALO} \
+            -w ${SHADOW} \
 			-V 1>> $LOG 2>&1
 
 			if [ $? -ne 0 ];then
@@ -681,10 +704,11 @@ function task6()
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/fiberidx_${CURCHOICE}_s${n}.data \
                         -s \
                         ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/skeleton_region_s${n}.data \
-
                         -t ${BINDIR}/task6/tasktext \
                         -p ${TASKPROGIDFILE} \
                         -r ${TUBERADIUS} \
+                        -a ${HALO} \
+                        -w ${SHADOW} \
                         -V 1>> $LOG 2>&1
 
                         if [ $? -ne 0 ];then
@@ -724,6 +748,8 @@ function task6()
                         -t ${BINDIR}/task6/tasktext \
                         -p ${TASKPROGIDFILE} \
                         -r ${TUBERADIUS} \
+                        -a ${HALO} \
+                        -w ${SHADOW} \
                         -V 1>> $LOG 2>&1
 
                         if [ $? -ne 0 ];then

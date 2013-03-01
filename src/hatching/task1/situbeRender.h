@@ -206,6 +206,8 @@ protected:
     //
     friend class hatching_t;
     hatching_t *hatching;
+    int m_nHalo;
+    int m_nShadow;
 
 
 public:

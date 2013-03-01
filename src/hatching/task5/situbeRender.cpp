@@ -65,7 +65,9 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 	m_strfnFiberIdx(""),
 	m_strAnswer(""),
 	m_nKey(1),
-	m_bSkeletonPrjInitialized(false)
+	m_bSkeletonPrjInitialized(false),
+    m_nHalo(0),
+    m_nShadow(0)
 {
 	for (int i=0;i<3;++i) {
 		m_maxCoord[i] = -LOCAL_MAXDOUBLE;
@@ -91,6 +93,8 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 	addOption('i', true, "fiber-index", "a file of indices of fibers that"
 		   " are expected to be marked by the user as correct answer");
 
+	addOption('a', true, "halo effect", "boolean 0/1 indicating if to add halo to the model");
+	addOption('w', true, "depth encoded shadow", "boolean 0/1 indicating if to add depth encoded shadow to the model");
 	// turn off gadget feature temporarily since we do not want the default X-Y-Z
 	// coordinate system indicator anymore
 	m_bGadgetEnabled = false;
@@ -193,6 +197,9 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 	
 	bool bKeyFiber = ( m_expectedFiberIndices.find( lineIdx ) != m_expectedFiberIndices.end() );
 
+    GLfloat cap_normal_x, cap_normal_y, cap_normal_z;
+    GLfloat bottom_normal_x, bottom_normal_y, bottom_normal_z;
+
 	for (unsigned long idx1 = 0, idx2 = 1; idx1 < szPts; idx1++) {
 		idx2 = idx1 + 1;
 		if ( szPts-1 == idx1 ) {
@@ -210,6 +217,19 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 		x2 = line [ idx2*6 + 3 ], 
 		   y2 = line [ idx2*6 + 4 ], 
 		   z2 = line [ idx2*6 + 5 ];
+
+        if(idx1 == 0 )
+        {
+            cap_normal_x = x1 - x2;
+            cap_normal_y = y1 - y2;
+            cap_normal_z = z1 - z2;
+        }
+        if(idx1 == szPts - 1)
+        {
+            bottom_normal_x = x1 - x2;
+            bottom_normal_y = y1 - y2;
+            bottom_normal_z = z1 - z2;
+        }
 
 		if ( m_bVradius ) {
 			segLen = magnitude(x1-x2, y1-y2, z1-z2);
@@ -316,15 +336,7 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
             tube_texcoords[idx1*2 * m_lod + 2*l + 0] = uf;
             tube_texcoords[idx1*2 * m_lod + 2*l + 1] = vf;
 
-            // adjust the normal for the vertices of cap and bottom
-            // 
-            if( 0 == idx1 || szPts-1 == idx1 )
-            {
-                tube_normals[ idx1*3 * m_lod + 3*l + 0 ] = (x1 - x2 );
-                tube_normals[ idx1*3 * m_lod + 3*l + 1 ] = (y1 - y2); 
-                tube_normals[ idx1*3 * m_lod + 3*l + 2 ] = (z1 - z2);
-            }
-
+            
             // find the maximal and minimal coordinats among the new
             // vertices of the streamtubes
             for (int j=0; j<3; ++j) {
@@ -350,25 +362,70 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
                 vf = 0.f;
     }
 
+    // add vertices and attributes for cap
+    for(int i = 0; i < m_lod * 3; ++i)
+    {
+        tube_vertices.push_back(tube_vertices[i]);
+        tube_colors.push_back(tube_colors[i]);
+    }
+    for(int i = 0; i < m_lod * 4; ++i)
+    {
+        tube_encodedcolors.push_back(tube_encodedcolors[i]);
+    }
+
+    for(int i = 0; i < m_lod; ++i)
+    {
+        tube_normals.push_back(cap_normal_x);
+        tube_normals.push_back(cap_normal_y);
+        tube_normals.push_back(cap_normal_z);
+    }
+    for(int i = 0; i < m_lod * 2; ++i)
+        tube_texcoords.push_back(tube_texcoords[i]);
+
+    // add vertices and attributes for bottom
+    unsigned long offset = (szPts - 1) * m_lod * 3;
+    for(int i = 0; i < m_lod * 3; ++i)
+    {
+        tube_vertices.push_back(tube_vertices[i + offset]);
+        tube_colors.push_back(tube_colors[i + offset]);
+    }
+    for(int i = 0; i < m_lod * 4; ++i)
+    {
+        tube_encodedcolors.push_back(tube_encodedcolors[i + offset]);
+    }
+
+    for(int i = 0; i < m_lod; ++i)
+    {
+        tube_normals.push_back(bottom_normal_x);
+        tube_normals.push_back(bottom_normal_y);
+        tube_normals.push_back(bottom_normal_z);
+    }
+    offset = (szPts - 1) * m_lod * 2;
+    for(int i = 0; i < m_lod * 2; ++i)
+        tube_texcoords.push_back(tube_texcoords[i + offset]);
+
+
     // add faces for the cap and bottom of one tube
-    unsigned int face_num = m_lod / 2 - 1;
-    for(unsigned int i = 0; i < face_num; ++i)
+    int face_num = m_lod / 2 - 1;
+    offset = szPts * m_lod;
+    for(int i = 0; i < face_num; ++i)
     {
-        tube_faceIdxs.push_back(i + 1);
-        tube_faceIdxs.push_back(i + 2);
-        tube_faceIdxs.push_back(m_lod - 1 - i);
-        tube_faceIdxs.push_back((m_lod - i) % m_lod);
+        tube_faceIdxs.push_back(i + 1 + offset);
+        tube_faceIdxs.push_back(i + 2 + offset);
+        tube_faceIdxs.push_back(m_lod - 1 - i + offset);
+        tube_faceIdxs.push_back((m_lod - i) % m_lod + offset);
     }
 
-    unsigned long bottom_start_id = szPts * m_lod - m_lod;
-    for(unsigned int i = 0; i < face_num; ++i)
+    offset = (szPts + 1) * m_lod;
+    for(int i = 0; i < face_num; ++i)
     {
 
-        tube_faceIdxs.push_back((m_lod - i)%m_lod + bottom_start_id);
-        tube_faceIdxs.push_back(m_lod - 1 - i + bottom_start_id);
-        tube_faceIdxs.push_back(i + 2 + bottom_start_id);
-        tube_faceIdxs.push_back(i + 1 + bottom_start_id);
+        tube_faceIdxs.push_back((m_lod - i)%m_lod + offset);
+        tube_faceIdxs.push_back(m_lod - 1 - i + offset);
+        tube_faceIdxs.push_back(i + 2 + offset);
+        tube_faceIdxs.push_back(i + 1 + offset);
     }
+
 
 
     // save the streamtube geometry for current streamline
@@ -554,7 +611,7 @@ void CSitubeRender::glInit(void)
 	glEnableClientState( GL_VERTEX_ARRAY );
 	glEnableClientState( GL_COLOR_ARRAY );
 	glEnableClientState( GL_NORMAL_ARRAY );
-    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+    //glEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
 
 	// force normalization when normals are designated
@@ -583,8 +640,8 @@ void CSitubeRender::glInit(void)
 	}
     
     hatching = new hatching_t(this);
-    hatching->set_halo(false);
-    hatching->set_depth_based_shadow(false);
+    hatching->set_halo(m_nHalo);
+    hatching->set_depth_based_shadow(m_nShadow);
     hatching->init_hatching();
 
 
@@ -666,6 +723,19 @@ int CSitubeRender::handleOptions(int optv)
 				return 0;
 			}
 			break;
+        case 'a':
+			{
+				m_nHalo = atoi(optarg);
+				return 0;
+			}
+			break;
+		case 'w':
+			{
+				m_nShadow = atoi(optarg);
+				return 0;
+			}
+			break;
+
 		default:
 			return CGLIBoxApp::handleOptions( optv );
 	}
@@ -960,7 +1030,7 @@ void CSitubeRender::draw_tubes()
 	for (unsigned long idx = 0; idx < szTotal; ++idx) {
 
 		glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
-        glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
+        //glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
 
 		if ( m_bUseDirectionColor ) {
 			glColorPointer(4, GL_FLOAT, 0, &m_encodedcolors[idx][0]);

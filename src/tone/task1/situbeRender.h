@@ -206,6 +206,8 @@ protected:
     //
     friend class tone_t;
     tone_t *tone;
+    int m_nHalo;
+    int m_nShadow;
 
 
 public:

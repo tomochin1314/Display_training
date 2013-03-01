@@ -115,22 +115,7 @@ void main()
     if(mask > 0.f)
         shadow_factor = 0.5f;
 
-
-    if(gl_FrontFacing)
-    {
-        if(gl_Color == keycolor)
-            gl_FragColor = vec4(shadow_factor * gl_Color.xyz, 1.0f);
-        else
-            gl_FragColor = vec4(shadow_factor * phong(normal).xyz, 1.0f);
-    }
-    else
-    {
-        if(gl_Color == keycolor)
-            gl_FragColor = vec4(shadow_factor * gl_Color.xyz, 1.0f);
-        else
-            gl_FragColor = vec4(shadow_factor * phong(-normal).xyz, 1.0f);
-    }
-
+    gl_FragColor = vec4(shadow_factor * phong(normal).xyz, 1.0f);
 }
 
 
