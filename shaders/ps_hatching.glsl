@@ -96,7 +96,7 @@ void main()
    /*vec4 hatchTex0 = vec4(texture2D(hatch0,tex_coord_hatching).xyz * weights0.x, 1.0f);*/
     vec4 hatchTex0 = vec4(weights0.xxx, 1.f);
     vec4 hatchTex1 = vec4(texture2D(hatch1,tex_coord_hatching).xyz * weights0.y, 1.0f);
-    vec4 hatchTex2 = vec4(texture2D(hatch2,tex_coord_hatching).xyz * weights0.z, 1.0f);
+    vec4 hatchTex2 = vec4(texture2D(hatch3,tex_coord_hatching).xyz * weights0.z, 1.0f);
     vec4 hatchTex3 = vec4(texture2D(hatch3,tex_coord_hatching).xyz * weights1.x, 1.0f);
     vec4 hatchTex4 = vec4(texture2D(hatch5,tex_coord_hatching).xyz * weights1.y, 1.0f);
     vec4 hatchTex5 = vec4(texture2D(hatch5,tex_coord_hatching).xyz * weights1.z, 1.0f);

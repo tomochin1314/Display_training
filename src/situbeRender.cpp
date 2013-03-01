@@ -303,7 +303,7 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 		 * around the axis by the angle above so as to contruct a multiple of ring that
 		 * is expected to appear as a tube
 		 */
-		GLfloat v_step = TEXCOORD_V_STEP;  // control the texcoord generation, this MACRO is defined in "hatching.h" 
+		GLfloat v_step = TEXCOORD_V_STEP;  // control the texcoord generation, this MACRO is defined in "phong.h" 
         static GLfloat vf = 0.0f;
 		for (GLubyte l = 0; l < m_lod; ++l) {
 			theta = 2 * 3.1415926 / m_lod * l;
@@ -640,10 +640,10 @@ void CSitubeRender::glInit(void)
 		m_bSync = true;
 	}
     
-    hatching = new hatching_t(this);
-    hatching->set_halo(m_nHalo);
-    hatching->set_depth_based_shadow(m_nShadow);
-    hatching->init_hatching();
+    phong = new phong_t(this);
+    phong->set_halo(m_nHalo);
+    phong->set_depth_based_shadow(m_nShadow);
+    phong->init_phong();
 }
 
 int CSitubeRender::handleOptions(int optv) 
@@ -1080,7 +1080,7 @@ void CSitubeRender::draw()
             -( m_minCoord[1] + m_maxCoord[1] )/2,
             -( m_minCoord[2] + m_maxCoord[2] )/2);
 
-    hatching->render();
+    phong->render();
 	glPopAttrib();
 	glPopMatrix();
 

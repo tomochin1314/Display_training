@@ -156,7 +156,7 @@
 #include "GLoader.h"
 #include "GLiboxmoth.h"
 #include "glrand.h"
-#include "hatching.h"
+#include "phong.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -206,10 +206,10 @@ protected:
 
 	static const char* SITR_SHM_NAME;
     //
-    // use this class to do hatching shading
+    // use this class to do phong shading
     //
-    friend class hatching_t;
-    hatching_t *hatching;
+    friend class phong_t;
+    phong_t *phong;
     int m_nHalo;
     int m_nShadow;
 

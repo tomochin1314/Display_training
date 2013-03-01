@@ -611,7 +611,7 @@ void CSitubeRender::glInit(void)
 	glEnableClientState( GL_VERTEX_ARRAY );
 	glEnableClientState( GL_COLOR_ARRAY );
 	glEnableClientState( GL_NORMAL_ARRAY );
-    //glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
 
 	// force normalization when normals are designated
@@ -1030,7 +1030,7 @@ void CSitubeRender::draw_tubes()
 	for (unsigned long idx = 0; idx < szTotal; ++idx) {
 
 		glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
-        //glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
+        glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
 
 		if ( m_bUseDirectionColor ) {
 			glColorPointer(4, GL_FLOAT, 0, &m_encodedcolors[idx][0]);

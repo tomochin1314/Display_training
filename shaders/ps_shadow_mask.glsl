@@ -51,7 +51,7 @@ void main()
         diff = 0.f;
     }
 
-    float delta = (2.*scale) / depth_diff;
+    float delta = (3.*scale) / depth_diff;
 
     float shadow = 0.0;
     if (tex_coord.w > 0.0 && diff > delta)
@@ -63,8 +63,4 @@ void main()
     if(shadow * diff == 0.f)
         gl_FragColor = vec4(0.f, 1.f, 0.f, 1.f);
     else gl_FragColor = vec4(1.f, 0.f, 0.f, 1.f);
-     /*gl_FragColor = vec4(shadow*diff, 0.f, 0.f, 1.f);*/
-     /*gl_FragColor = vec4(1.f, 0.f, 0.f, 1.f);*/
-    /*gl_FragDepth = tex_coord_divided;*/
-    /*gl_FragDepth = 0.1;*/
 }

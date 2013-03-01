@@ -29,7 +29,7 @@ class CSitubeRender;
 #define RELOC_STEP 0.3
 #define RELOC_INIT 0.5  // relocation scale, smallest value
 
-#define TEXCOORD_V_STEP 0.7f  // used in situbeRender.cpp, generating the texcoord
+#define TEXCOORD_V_STEP 0.06f  // used in situbeRender.cpp, generating the texcoord
 
 
 typedef struct {
