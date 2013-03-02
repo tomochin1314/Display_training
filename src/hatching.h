@@ -30,6 +30,8 @@ class CSitubeRender;
 #define RELOC_INIT 0.5  // relocation scale, smallest value
 
 #define TEXCOORD_V_STEP 0.06f  // used in situbeRender.cpp, generating the texcoord
+#define MAX_SHADOW_LEN 2.0f
+#define MIN_SHADOW_LEN 0.5f
 
 
 typedef struct {
@@ -118,7 +120,7 @@ class hatching_t
 
         // the length of shadow is related with the distance between two tubes
         // we use exponential relationship here
-        void calc_shadow_len_threshold();
+        void calc_shadow_len_threshold(GLfloat shadow_len_step);
         void init_misc();
         void gen_reloc_depth_tex(GLuint w, GLuint h);
 

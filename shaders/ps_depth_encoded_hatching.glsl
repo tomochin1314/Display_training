@@ -100,7 +100,7 @@ void main()
         // seems we can't use texture color as shadow here
         
         /*hatchColor = texture2D(hatch4, tex_coord_hatching);*/
-        shadow_factor = 0.5f;
+        shadow_factor = mask;
     }
     /*
      *else

@@ -543,29 +543,41 @@ void phong_t::init_material()
 
 // the length of shadow is related with the distance between two tubes
 // we use exponential relationship here
-void phong_t::calc_shadow_len_threshold()
+// the function is: dist = (maxdist + 1)^(slen/max_slen) - 1
+// here we use slen+slen_step instead of slen
+// inorder to  map to larger interval of dist
+void phong_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
 {
-    shadow_len_threshold.clear();
     float max_dist = tr->m_fbdRadius *2.f; 
-    shadow_len_threshold.push_back(tr->m_fRadius * 5.0f);
-    shadow_len_threshold.push_back(max_dist / 4.f);
-    shadow_len_threshold.push_back(max_dist / 2.f);
-    shadow_len_threshold.push_back(max_dist);
+
+    shadow_len_threshold.clear();
+    for(int i = 0; i < RELOC_NUM; ++i)
+    {
+        GLfloat dist = pow( (max_dist + 1), (relocation_level[i]+shadow_len_step)/MAX_SHADOW_LEN) - 1;
+        shadow_len_threshold.push_back(dist);
+    }
 
     for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        printf("threshold:%f\n", shadow_len_threshold[i]);
+        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
 void phong_t::init_misc()
 {
-    relocation_level.clear();
-    relocation_level.push_back(0.5f);
-    relocation_level.push_back(0.8f);
-    relocation_level.push_back(1.3f);
-    relocation_level.push_back(2.f);
+    GLfloat slen_step = (MAX_SHADOW_LEN - MIN_SHADOW_LEN) / RELOC_NUM;
 
-    calc_shadow_len_threshold();
+    relocation_level.clear();
+
+    GLfloat shadow_length = MIN_SHADOW_LEN;
+    for(int i = 0; i < RELOC_NUM; ++i)
+    {
+        relocation_level.push_back(shadow_length);
+        shadow_length += slen_step;
+    }
+
+    for(GLuint i = 0; i < relocation_level.size(); ++i)
+        printf("shadow length levels:%f\n", relocation_level[i]);
+    calc_shadow_len_threshold(slen_step);
 }
 
 void phong_t::init_phong()

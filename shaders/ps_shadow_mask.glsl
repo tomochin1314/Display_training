@@ -10,6 +10,8 @@ uniform vec4 reloc_scale0;
 varying float camera_depth;
 varying vec4 tex_coord;
 
+// the larger the distance between two tubes
+// the wider and lighter the shadow
 void main()
 {
     vec4 tex_coord_divided = tex_coord / tex_coord.w;
@@ -30,28 +32,34 @@ void main()
     float ref_dist = abs(camera_depth - dist2);
     float diff = ref_dist;
     float scale = reloc_scale0.z;
+    float shadow_tone;  // smaller distance, lighter shadow
 
+    // compare the distance between two tubes with each limit
     if(ref_dist <= thre.x)
     {
         diff = abs(camera_depth - dist0);
         scale = reloc_scale0.x;
+        shadow_tone = 0.3;
     }
     else if(ref_dist <= thre.y)
     {
         diff = abs(camera_depth - dist1);
         scale = reloc_scale0.y;
+        shadow_tone = 0.5;
     }
     else if(ref_dist <= thre.z)
     {
         diff = ref_dist;
         scale = reloc_scale0.z;
+        shadow_tone = 0.7;
     }
-    else
+    else  // if the distance if too large, we don't draw any shadow
     {
         diff = 0.f;
     }
 
-    float delta = (3.*scale) / depth_diff;
+    // 4.0 is a magic number to avoid false shadow on the object its self
+    float delta = (4.*scale) / depth_diff;
 
     float shadow = 0.0;
     if (tex_coord.w > 0.0 && diff > delta)
@@ -62,5 +70,5 @@ void main()
     /*gl_FragDepth = shadow * diff;*/
     if(shadow * diff == 0.f)
         gl_FragColor = vec4(0.f, 1.f, 0.f, 1.f);
-    else gl_FragColor = vec4(1.f, 0.f, 0.f, 1.f);
+    else gl_FragColor = vec4(shadow_tone, 0.f, 0.f, 1.f);
 }

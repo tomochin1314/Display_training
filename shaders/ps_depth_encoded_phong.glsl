@@ -113,7 +113,7 @@ void main()
     float mask = texture2D(shadow_mask,  shadowCoordinateWdivide.st).x;
     float shadow_factor = 1.0f;
     if(mask > 0.f)
-        shadow_factor = 0.5f;
+        shadow_factor = mask;
 
     gl_FragColor = vec4(shadow_factor * phong(normal).xyz, 1.0f);
 }
