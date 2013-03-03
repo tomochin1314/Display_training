@@ -2,12 +2,9 @@
 // at most 8 depth map
 uniform sampler2D depth_map0;
 uniform sampler2D depth_map1;
-uniform sampler2D depth_map2; // the largest relocation scale
-<<<<<<< HEAD
+uniform sampler2D depth_map2;
 uniform sampler2D depth_map3;
-=======
 uniform sampler2D depth_map3; // the largest relocation scale
->>>>>>> 5c18896738844c1bce70f69aa2c9340988ee5ea6
 uniform float depth_far;
 uniform float depth_near;
 uniform vec4 threshold0;
@@ -86,10 +83,6 @@ void main()
      *else gl_FragColor = vec4(shadow_tone, 0.f, 0.f, 1.f);
      */
     if(shadow * diff == 0.f)
-<<<<<<< HEAD
-        gl_FragDepth = 0.f;
-=======
         gl_FragDepth = 0.;
->>>>>>> 5c18896738844c1bce70f69aa2c9340988ee5ea6
     else gl_FragDepth = shadow_tone;
 }

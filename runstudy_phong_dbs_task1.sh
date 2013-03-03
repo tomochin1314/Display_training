@@ -204,15 +204,8 @@ function task1()
 	local di=0
 	for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
 	do
-<<<<<<< HEAD
 		for n in ${CURORDER}
 		do
-=======
-        echo ${NORMALCASEDATADIR} >> $LOG
-		for n in ${CURORDER}
-		do
-        echo ${n} >> $LOG
->>>>>>> 5c18896738844c1bce70f69aa2c9340988ee5ea6
 			updatetaskprog
 			#CURFB=${FIBERBUNDLES[$((n-1))]}
 			CURFB=${FBARRARY[$di]}
