@@ -9,15 +9,15 @@
 // ----------------------------------------------------------------------------
 #include "situbeRender.h"
 
+#ifdef __MAC
+#include "mac_def.h"
+#endif //__MAC
+
 using std::ostream_iterator;
 using std::copy;
 using std::ofstream;
 using std::ifstream;
 using std::ends;
-
-#ifdef __MAC
-#include "mac_def.h"
-#endif //__MAC
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -30,8 +30,8 @@ using std::ends;
 const char* CSitubeRender::SITR_SHM_NAME = "SHM_SITR_INTERACTION";
 CSitubeRender* CSitubeRender::m_psitInstance = NULL;
 CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
-	m_bUseOrgColor(false),
-	m_bUseDirectionColor(true),
+	m_bUseOrgColor(true),
+	m_bUseDirectionColor(false),
 	m_bVnormal(false),
     m_loader(),
 	m_strfnsrc(""),
@@ -41,7 +41,6 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 #endif
 	m_strfnhelp(""),
 	m_strfntask(""),
-	m_strfnskeleton(""),
 	m_lod(8),
 	m_nselbox(1),
 	m_bVradius(true),
@@ -52,7 +51,7 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 	m_fbdRadius(20.0),
 	m_fMaxSegLen(-LOCAL_MAXDOUBLE),
 	m_fMinSegLen(LOCAL_MAXDOUBLE),
-	m_colorschemeIdx(CLSCHM_CUSTOM),
+	m_colorschemeIdx(CLSCHM_FA),
 #ifdef DWI_EMBEDDING
 	m_bShowDWIImage(true),
 #endif
@@ -61,11 +60,11 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 	m_bSync(false),
 	m_nSiblings(0),
 	m_bSuspended(false),
-	m_strfnFiberIdx(""),
 	m_strAnswer(""),
-	m_nKey(0),
-	m_fKeyDiff(0.0),
+	m_nKey(1),
+	m_strfnskeleton(""),
 	m_bSkeletonPrjInitialized(false),
+	m_nFlip(0),
     m_nHalo(0),
     m_nShadow(0)
 {
@@ -76,12 +75,14 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 
 	addOption('f', true, "input-file-name", "the name of source file"
 			" containing geometry and in the format of tgdata");
+#ifdef DWI_EMBEDDING
 	addOption('d', true, "dwi-b0-dir", "directory holding DWI b0 DICOM images");
+#endif
 	addOption('g', true, "output-file-name", "the name of target file"
 			" to store the geometry of streamtubes produced");
 	addOption('r', true, "tube-radius", "fixed radius of the tubes"
 			" to generate");
-	addOption('l', true, "lod", "level of detail controlling the tube"
+	addOption('l', true, "lod", "level ot detail controlling the tube"
 			" generation, it is expected to impact the smoothness of tubes");
 	addOption('b', true, "box-num", "number of selection box"
 			" which is 1 by default");
@@ -90,16 +91,18 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 			"visualization tasks");
 	addOption('s', true, "skeletonic-geometry", "a file containing geometry"
 		    " of bundle skeletons also in the format of tgdata");
-	addOption('i', true, "fiber-index", "a file of indices of fibers that"
-		   " are expected to be marked by the user as correct answer");
+	addOption('j', true, "boxpos", "files of box position");
+	addOption('k', true, "task key", "number indicating the task key, the order of correct box");
+	addOption('i', true, "flip model", "boolean 0/1 indicating if to flip the model initially");
 
 	addOption('a', true, "halo effect", "boolean 0/1 indicating if to add halo to the model");
 	addOption('w', true, "depth encoded shadow", "boolean 0/1 indicating if to add depth encoded shadow to the model");
+
 	// turn off gadget feature temporarily since we do not want the default X-Y-Z
 	// coordinate system indicator anymore
 	m_bGadgetEnabled = false;
 	m_colormapper.setColorScheme( m_colorschemeIdx );
-	m_pcmGadget = new CSphereColorMap();
+	m_pcmGadget = new CRectColorMap();
 	m_paxesGagdet = new CAnatomyAxis();
 }
 
@@ -176,9 +179,9 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 	vector<GLfloat>		tube_vertices;
 	vector<GLfloat>		tube_normals;
 	vector<GLfloat>		tube_colors;
+    vector<GLfloat>     tube_texcoords;
 	vector<GLuint>		tube_faceIdxs;
 	vector<GLfloat>		tube_encodedcolors;
-    vector<GLfloat>     tube_texcoords;
 
 	/* vertex array for each tube segment will contain all vertices needed to
 	 * contruct the faces, tinted by the color originally for the start point
@@ -186,16 +189,14 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 	 */
 	tube_vertices.resize ( szPts * m_lod * 3 );
 	tube_normals.resize( szPts * m_lod * 3 );
-	tube_texcoords.resize( szPts * m_lod * 2 );
+    tube_texcoords.resize( szPts * m_lod * 2);
 
 	// szPts points contain szPts-1 line segments
 	//tube_colors.resize( (szPts-1) * 3 );
 	tube_colors.resize( szPts * m_lod * 3 );
-	tube_faceIdxs.resize( (szPts-1) * m_lod * 4 );
+	tube_faceIdxs.resize( (szPts-1) * m_lod * 4);
 
-	tube_encodedcolors.resize( szPts * m_lod * 4 );
-	
-	bool bKeyFiber = ( m_expectedFiberIndices.find( lineIdx ) != m_expectedFiberIndices.end() );
+	tube_encodedcolors.resize( szPts * m_lod * 3 );
 
     GLfloat cap_normal_x, cap_normal_y, cap_normal_z;
     GLfloat bottom_normal_x, bottom_normal_y, bottom_normal_z;
@@ -252,16 +253,21 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 		else {
 			dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
 		}
+		if ( 0 != m_colormapper.getColor( dx, dy, dz, r, g ,b) ) {
+			// take the color for the start point as the color for the associated tube
+			// fragment
 
-		// take the color for the start point as the color for the associated tube
-		// fragment
-		m_colormapper.getColor( dx, dy, dz, r, g ,b);
-
-		// mark expected fiber bundles to yellow
-		if ( bKeyFiber ) {
-			r = g = 1.0;
-			b = 0.0;
+			if ( szPts-1 > idx1 ) {
+				tube_encodedcolors[ idx1*3 + 0 ] = line [ idx1*6 + 0 ];
+				tube_encodedcolors[ idx1*3 + 1 ] = line [ idx1*6 + 1 ];
+				tube_encodedcolors[ idx1*3 + 2 ] = line [ idx1*6 + 2 ];
+			}
 		}
+		/*
+		   else {
+		   cout << "color of fiber : " << r << "," << g << "," << b << "\n";
+		   }
+		   */
 
 		/* firstly project a third vector in between each pair of adjacent line
 		 * fragments
@@ -303,7 +309,7 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 		 * around the axis by the angle above so as to contruct a multiple of ring that
 		 * is expected to appear as a tube
 		 */
-		GLfloat v_step = TEXCOORD_V_STEP;  // control the texcoord generation, this MACRO is defined in "hatching.h" 
+        GLfloat v_step = TEXCOORD_V_STEP;  // control the texcoord generation, this MACRO is defined in "phong.h" 
         static GLfloat vf = 0.0f;
 		for (GLubyte l = 0; l < m_lod; ++l) {
 			theta = 2 * 3.1415926 / m_lod * l;
@@ -330,13 +336,13 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 			tube_colors [ idx1*3 * m_lod + 3*l + 0 ] = line [ idx1*6 + 0 ];
 			tube_colors [ idx1*3 * m_lod + 3*l + 1 ] = line [ idx1*6 + 1 ];
 			tube_colors [ idx1*3 * m_lod + 3*l + 2 ] = line [ idx1*6 + 2 ];
-			tube_encodedcolors [ idx1*4 * m_lod + 4*l + 0 ] = r;
-			tube_encodedcolors [ idx1*4 * m_lod + 4*l + 1 ] = g;
-			tube_encodedcolors [ idx1*4 * m_lod + 4*l + 2 ] = b;
-			tube_encodedcolors [ idx1*4 * m_lod + 4*l + 3 ] = (bKeyFiber?1.0:0.2);
+			tube_encodedcolors [ idx1*3 * m_lod + 3*l + 0 ] = r;
+			tube_encodedcolors [ idx1*3 * m_lod + 3*l + 1 ] = g;
+            tube_encodedcolors [ idx1*3 * m_lod + 3*l + 2 ] = b;
             tube_texcoords[idx1*2 * m_lod + 2*l + 0] = uf;
             tube_texcoords[idx1*2 * m_lod + 2*l + 1] = vf;
 
+            
 
             // find the maximal and minimal coordinats among the new
             // vertices of the streamtubes
@@ -358,7 +364,6 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
                 tube_faceIdxs [ idx1*4 * m_lod + 4*l + 3 ] = idx1*m_lod + (l + 1)%m_lod;
             }
         }
-
         vf += v_step;
         if(vf > 1.f)
             vf = 0.f;
@@ -369,9 +374,6 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
     {
         tube_vertices.push_back(tube_vertices[i]);
         tube_colors.push_back(tube_colors[i]);
-    }
-    for(int i = 0; i < m_lod * 4; ++i)
-    {
         tube_encodedcolors.push_back(tube_encodedcolors[i]);
     }
 
@@ -390,9 +392,6 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
     {
         tube_vertices.push_back(tube_vertices[i + offset]);
         tube_colors.push_back(tube_colors[i + offset]);
-    }
-    for(int i = 0; i < m_lod * 4; ++i)
-    {
         tube_encodedcolors.push_back(tube_encodedcolors[i + offset]);
     }
 
@@ -427,7 +426,6 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
         tube_faceIdxs.push_back(i + 2 + offset);
         tube_faceIdxs.push_back(i + 1 + offset);
     }
-
 
     // save the streamtube geometry for current streamline
     m_alltubevertices[ lineIdx ] = tube_vertices;
@@ -508,21 +506,21 @@ int CSitubeRender::serializeTubes(const string& fnobj)
                 }
             }
             ofs << endl;
-		}
+        }
 
-		// two blank lines separating between each block of geometry for a
-		// single tube 
-		ofs << endl << endl;
-	}
+        // two blank lines separating between each block of geometry for a
+        // single tube 
+        ofs << endl << endl;
+    }
 
-	// a brief even trivial tail
-	ofs << "# end of the obj file " << endl;
-	ofs << "# --------------------------- " << endl;
+    // a brief even trivial tail
+    ofs << "# end of the obj file " << endl;
+    ofs << "# --------------------------- " << endl;
 
-	ofs.close();
+    ofs.close();
 
-	m_cout << " finished.\n";
-	return 0;
+    m_cout << " finished.\n";
+    return 0;
 }
 
 /* 
@@ -565,17 +563,6 @@ int CSitubeRender::loadGeometry()
 	for (unsigned long idx = 0; idx < szTotal; ++idx) {
 		buildTubefromLine( idx );
 	}
-
-	if ( "" == m_strfnFiberIdx || 0 != _loadFiberIdx() ) {
-		cerr << "Failed to load task key : the fiber indices of "
-			"the bundle to be marked, see -h for usage.\n";
-		return -1;
-	}
-
-	for (unsigned long idx = 0; idx < szTotal; ++idx) {
-		buildTubefromLine( idx );
-	}
-
 	m_cout << " finished.\n";
 
 	m_cout << "X : " << m_minCoord[0] << " - " << m_maxCoord[0] << "\n";
@@ -587,10 +574,11 @@ int CSitubeRender::loadGeometry()
 	return 0;
 }
 
-bool CSitubeRender::isTubeInSelbox(unsigned long lineIdx) 
+bool CSitubeRender::isTubeInSelbox(const vector<GLfloat>& line)
+//bool CSitubeRender::isTubeInSelbox(unsigned long lineIdx) 
 {
 	//const vector<GLfloat> & line = m_loader.getElement( lineIdx );
-	const vector<GLfloat> & line = m_alltubevertices[ lineIdx ];
+	//const vector<GLfloat> & line = m_alltubevertices[ lineIdx ];
 	unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
 
 	for (unsigned long idx = 0; idx < szPts; idx++) {
@@ -609,10 +597,10 @@ void CSitubeRender::glInit(void)
 	CGLIBoxApp::glInit();
 
 	// dis/en -abling primitive arrays
-	glEnableClientState( GL_VERTEX_ARRAY );
-	glEnableClientState( GL_COLOR_ARRAY );
-	glEnableClientState( GL_NORMAL_ARRAY );
-    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+    glEnableClientState( GL_VERTEX_ARRAY );
+    glEnableClientState( GL_COLOR_ARRAY );
+    glEnableClientState( GL_NORMAL_ARRAY );
+    //glEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
 
 	// force normalization when normals are designated
@@ -621,8 +609,8 @@ void CSitubeRender::glInit(void)
 
 	glFrontFace(GL_CCW);
 	glEnable(GL_CULL_FACE);
-	glEnable(GL_COLOR_MATERIAL);
-	glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -639,11 +627,12 @@ void CSitubeRender::glInit(void)
 		glutIdleFunc(_onIdle);
 		m_bSync = true;
 	}
-    
-    hatching = new hatching_t(this);
-    hatching->set_halo(m_nHalo);
-    hatching->set_depth_based_shadow(m_nShadow);
-    hatching->init_hatching();
+
+    phong = new phong_t(this);
+    phong->set_halo(m_nHalo);
+    phong->set_depth_based_shadow(m_nShadow);
+    phong->init_phong();
+
 }
 
 int CSitubeRender::handleOptions(int optv) 
@@ -716,13 +705,30 @@ int CSitubeRender::handleOptions(int optv)
 				return 0;
 			}
 			break;
-		case 'i':
+		case 'j':
 			{
-				m_strfnFiberIdx = optarg;
+				m_strfnTumorBoxes.push_back(optarg);
 				return 0;
 			}
 			break;
-        case 'a':
+		case 'k':
+			{
+				m_nKey = atoi(optarg);
+				if ( m_nKey <= 0 ) {
+					cerr << "value for task key is illict, "
+						"should be in [1,2].\n";
+					return -1;
+				}
+				return 0;
+			}
+			break;
+		case 'i':
+			{
+				m_nFlip = atoi(optarg);
+				return 0;
+			}
+			break;
+		case 'a':
 			{
 				m_nHalo = atoi(optarg);
 				return 0;
@@ -734,7 +740,6 @@ int CSitubeRender::handleOptions(int optv)
 				return 0;
 			}
 			break;
-
 		default:
 			return CGLIBoxApp::handleOptions( optv );
 	}
@@ -809,8 +814,7 @@ void CSitubeRender::specialResponse(int key, int x, int y)
 void CSitubeRender::mouseResponse(int button, int state, int x, int y)
 {
 	_BLOCK_ALL_INPUT;
-	if ( button != GLUT_LEFT_BUTTON ) return;
-
+	if ( GLUT_LEFT_BUTTON != button ) return;
 	if ( m_bSync && m_nSiblings >= 1) {
 		m_pIntInfo->bUpdated = true;
 		m_pIntInfo->button = button;
@@ -906,20 +910,24 @@ int CSitubeRender::mainstay()
 	setMinMax(73.892693, 51.458450, 6.270835,
 			178.686295, 196.907684, 134.905716);
 
+	m_nselbox = m_strfnTumorBoxes.size();
 	// add initial number of selection boxes
 	for (int i=0; i<m_nselbox; ++i) {
 		addBox();
 	}
 
+	if ( 0 != m_nselbox && 0 != _loadTumorBoxpos() ) {
+		cerr << "FATAL: failed to load tumor bounding box information.\n";
+		return -1;
+	}
+
 	// add a color map sphere
-	/*
 	m_pcmGadget->setVertexCoordRange(
 			( m_minCoord[0] + m_maxCoord[0] )/2.0,
 			( m_minCoord[1] + m_maxCoord[1] )/2.0,
 			( m_minCoord[2] + m_maxCoord[2] )/2.0);
 	addGadget( m_pcmGadget );
-	((CSphereColorMap*)m_pcmGadget)->setColorScheme( m_colorschemeIdx );
-	*/
+	((CRectColorMap*)m_pcmGadget)->setColorScheme( m_colorschemeIdx );
 	//m_pcmGadget->switchTranslucent();
 
 	// add an anatomical coordinate system gadget
@@ -928,7 +936,10 @@ int CSitubeRender::mainstay()
 			( m_minCoord[1] + m_maxCoord[1] )/2,
 			( m_minCoord[2] + m_maxCoord[2] )/2);
 	addGadget( m_paxesGagdet );
-	((CAnatomyAxis*)m_paxesGagdet)->setColorScheme( m_colorschemeIdx );
+	//((CAnatomyAxis*)m_paxesGagdet)->setColorScheme( m_colorschemeIdx );
+
+	m_paxesGagdet->setStereo(m_bStereo, 1.0, 40.0);
+	m_pcmGadget->setStereo(false);
 
 	// add the help prompt text box if requested
 	if ( "" != m_strfnhelp && m_bShowHelp ) { //yes, requested
@@ -960,6 +971,7 @@ int CSitubeRender::mainstay()
 			m_taskbox.setColor(1.0, 1.0, 1.0);
 			//m_taskbox.turncover(true);
 			m_taskbox.turncover(false);
+			m_taskbox.setRasterPosOffset(0, -80);
 			m_bIboxEnabled = false;
 			//m_bGadgetEnabled = false;
 		}
@@ -983,27 +995,31 @@ int CSitubeRender::mainstay()
 	}
 #endif
 
-	// (1: <10% 2: 10~20% 3: 20~30% 4: 30~40% 5: >40%).
-	// changed to 
-	// ( 1: similar 2: ~ 30% 3: ~50% )
+	/*
+	m_optPanel.setVertexCoordRange(
+				( m_minCoord[0] + m_maxCoord[0] )/2,
+				( m_minCoord[1] + m_maxCoord[1] )/2,
+				( m_minCoord[2] + m_maxCoord[2] )/2);
+	*/
+
 	addOptBtn("Similar");
-	addOptBtn("~30%");
-	addOptBtn("~50%");
+	addOptBtn("1 is higher");
+	addOptBtn("2 is higher");
 	addOptBtn("Next");
+
 
 	setPrjInfo(18.0f, 
 			//ABS(m_minCoord[2])/4.0,
-			6.27/4.0,
+            6.27/4.0,
 			//(ABS(m_maxCoord[2]) + ABS(m_minCoord[2]))*8);
-			70.76*16.0);
+            70.76*16.0
+                );
 
 	setViewInfo(0.0, 0.0,
 			//( m_minCoord[2] + m_maxCoord[2] )*3,
 			70.76*6.0,
 			0.0, 0.0, 0.0,
 			0, 1, 0);
-
-	//setClearColor(0.5, 0.5, 0.5);
 
 	m_psitInstance = this;
 	// if multiple process support is enable
@@ -1025,41 +1041,93 @@ int CSitubeRender::mainstay()
 	return	CGLIBoxApp::mainstay();
 }
 
-
 void CSitubeRender::draw_tubes()
 {
-		/* load streamtube geometry and render
+	/* load streamtube geometry and render
 	*/
 	unsigned long szTotal = m_loader.getSize();
 	for (unsigned long idx = 0; idx < szTotal; ++idx) {
+/*
+ *        for(unsigned long i = 0; i < m_alltubefaceIdxs[idx].size()/4; i++)
+ *        {
+ *            unsigned long i1 = m_alltubefaceIdxs[idx][i*4+0];
+ *            unsigned long i2 = m_alltubefaceIdxs[idx][i*4+1];
+ *            unsigned long i3 = m_alltubefaceIdxs[idx][i*4+2];
+ *            unsigned long i4 = m_alltubefaceIdxs[idx][i*4+3];
+ *
+ *            glBegin(GL_QUADS);
+ *            glColor3f(m_alltubecolors[idx][i1*3+0],
+ *                      m_alltubecolors[idx][i1*3+1],
+ *                      m_alltubecolors[idx][i1*3+2]);
+ *            glNormal3f(m_alltubenormals[idx][i1*3+0],
+ *                       m_alltubenormals[idx][i1*3+1],
+ *                       m_alltubenormals[idx][i1*3+2]);
+ *            glVertex3f(m_alltubevertices[idx][i1*3+0],
+ *                       m_alltubevertices[idx][i1*3+1],
+ *                       m_alltubevertices[idx][i1*3+2]);
+ *
+ *            glColor3f(m_alltubecolors[idx][i2*3+0],
+ *                      m_alltubecolors[idx][i2*3+1],
+ *                      m_alltubecolors[idx][i2*3+2]);
+ *            glNormal3f(m_alltubenormals[idx][i2*3+0],
+ *                       m_alltubenormals[idx][i2*3+1],
+ *                       m_alltubenormals[idx][i2*3+2]);
+ *            glVertex3f(m_alltubevertices[idx][i2*3+0],
+ *                       m_alltubevertices[idx][i2*3+1],
+ *                       m_alltubevertices[idx][i2*3+2]);
+ *
+ *            glColor3f(m_alltubecolors[idx][i3*3+0],
+ *                      m_alltubecolors[idx][i3*3+1],
+ *                      m_alltubecolors[idx][i3*3+2]);
+ *            glNormal3f(m_alltubenormals[idx][i3*3+0],
+ *                       m_alltubenormals[idx][i3*3+1],
+ *                       m_alltubenormals[idx][i3*3+2]);
+ *            glVertex3f(m_alltubevertices[idx][i3*3+0],
+ *                       m_alltubevertices[idx][i3*3+1],
+ *                       m_alltubevertices[idx][i3*3+2]);
+ *
+ *            glColor3f(m_alltubecolors[idx][i4*3+0],
+ *                      m_alltubecolors[idx][i4*3+1],
+ *                      m_alltubecolors[idx][i4*3+2]);
+ *            glNormal3f(m_alltubenormals[idx][i4*3+0],
+ *                       m_alltubenormals[idx][i4*3+1],
+ *                       m_alltubenormals[idx][i4*3+2]);
+ *            glVertex3f(m_alltubevertices[idx][i4*3+0],
+ *                       m_alltubevertices[idx][i4*3+1],
+ *                       m_alltubevertices[idx][i4*3+2]);
+ *            glEnd();
+ *        }
+ *
+ */
+        glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
 
-		glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
-        glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
+        //glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
 
-		if ( m_bUseDirectionColor ) {
-			glColorPointer(4, GL_FLOAT, 0, &m_encodedcolors[idx][0]);
-		}
-		else if ( m_bUseOrgColor ) {
-			glColorPointer(3, GL_FLOAT, 0, &m_alltubecolors[idx][0]);
-		}
+        if ( m_bUseDirectionColor ) {
+            glColorPointer(3, GL_FLOAT, 0, &m_encodedcolors[idx][0]);
+        }
+        else if ( m_bUseOrgColor ) {
+            glColorPointer(3, GL_FLOAT, 0, &m_alltubecolors[idx][0]);
+        }
 
-		if ( m_bVnormal ) {
-			glNormalPointer(GL_FLOAT, 0 ,&m_alltubevertices[idx][0]);
-		}
-		else {
-			glNormalPointer(GL_FLOAT, 0 ,&m_alltubenormals[idx][0]);
-		}
+        if ( m_bVnormal ) {
+            glNormalPointer(GL_FLOAT, 0 ,&m_alltubevertices[idx][0]);
+        }
+        else {
+            glNormalPointer(GL_FLOAT, 0 ,&m_alltubenormals[idx][0]);
+        }
 
-		glDrawElements(GL_QUADS, m_alltubefaceIdxs[idx].size(), 
-				GL_UNSIGNED_INT, &m_alltubefaceIdxs[idx][0]);
-
+        glDrawElements(GL_QUADS, m_alltubefaceIdxs[idx].size(), 
+                GL_UNSIGNED_INT, &m_alltubefaceIdxs[idx][0]);
 	}
+
 
 }
 
-void CSitubeRender::draw() 
+void CSitubeRender::do_draw() 
 {
 	CGLIBoxApp::do_draw();
+
 #ifdef DWI_EMBEDDING
 	// draw the DWI B0 image
 	if ( "" != m_strdwidir && m_bShowDWIImage ) {
@@ -1067,64 +1135,67 @@ void CSitubeRender::draw()
 	}
 #endif
 
-
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glPushMatrix();
+    if (m_nFlip != 0 /*&& m_nFlip != 200*/) {
+        glRotatef(180.0f, 0,1,0);
+        m_nFlip = 100;
+    }
 
-    // move the local coordinate system so that the default origin is still
-    // located at the center of the object coordinate system
-    glTranslatef( -( m_minCoord[0] + m_maxCoord[0] )/2,
-            -( m_minCoord[1] + m_maxCoord[1] )/2,
-            -( m_minCoord[2] + m_maxCoord[2] )/2);
+	// move the local coordinate system so that the default origin is still
+	// located at the center of the object coordinate system
+	glTranslatef( -( m_minCoord[0] + m_maxCoord[0] )/2,
+			-( m_minCoord[1] + m_maxCoord[1] )/2,
+			-( m_minCoord[2] + m_maxCoord[2] )/2);
 
-    hatching->render();
-	glPopAttrib();
+    phong->render();
+    //draw_tubes();
 	glPopMatrix();
 
 
-    glPushMatrix();
 
-    // move the local coordinate system so that the default origin is still
-    // located at the center of the object coordinate system
-    glTranslatef( -( m_minCoord[0] + m_maxCoord[0] )/2,
-            -( m_minCoord[1] + m_maxCoord[1] )/2,
-            -( m_minCoord[2] + m_maxCoord[2] )/2);
+	// draw help text box if necessary
+	if ( "" != m_strfnhelp && m_bShowHelp ) {
+		m_helptext.display();
+	}
 
-    // draw help text box if necessary
-    if ( "" != m_strfnhelp && m_bShowHelp ) {
-        m_helptext.display();
-    }
+	glPushMatrix();
+	if (m_nFlip != 0 /*&& m_nFlip != 200*/) {
+		glRotatef(180.0f, 0,1,0);
+		m_nFlip = 100;
+	}
+	_drawMarkers();
 
-    // draw task text box if necessary
-    if ( "" != m_strfntask ) {
-        m_taskbox.display();
-        /*
-           if ( m_taskbox.iscovered() ) {
-        // when a task is waiting for trigger, no draw afterwards is needed
-        return;
-        }
-        */
-    }
-    glPopMatrix();
+	drawBoxes();
 
-    // show fiber bundle skeleton if requested and available
-    if ( "" != m_strfnskeleton ) {
-        drawCanvas();
-        if ( ! m_bSkeletonPrjInitialized ) {
-            projectSkeleton(0,0);
-            m_bSkeletonPrjInitialized = true;
-        }
-        drawSkeleton();
-    }
+	// show fiber bundle skeleton if requested and available
+	if ( "" != m_strfnskeleton ) {
+		drawCanvas();
+		if ( ! m_bSkeletonPrjInitialized ) {
+			projectSkeleton(0,0);
+			m_bSkeletonPrjInitialized = true;
+		}
+		drawSkeleton();
+	}
+	glPopMatrix();
 
-    /*
-     * since mostly an interaction input should bring about a need of redrawing,
-     * here at this point it should be the best place to say that one more
-     * interaction synchronization for current process has been finished
-     */
+	// draw task text box if necessary
+	if ( "" != m_strfntask ) {
+		m_taskbox.display();
+		/*
+		if ( m_taskbox.iscovered() ) {
+			// when a task is waiting for trigger, no draw afterwards is needed
+			return;
+		}
+		*/
+	}
+
+
+	/*
+	 * since mostly an interaction input should bring about a need of redrawing,
+	 * here at this point it should be the best place to say that one more
+	 * interaction synchronization for current process has been finished
+	 */
     if ( m_bSync && m_nSiblings >= 1 && m_pIntInfo->bUpdated ) {
         m_pIntInfo->nFinished ++;
 
@@ -1139,39 +1210,39 @@ void CSitubeRender::draw()
 
 void CSitubeRender::onIdle(void)
 {
-    if ( m_nSiblings < 1 ) {
-        /* this customized idle function will be used for self-rotating
-         * exhibition
-         */
-        char keys[] = {'j', 'h', 'i', 'l', 'k', ','};
-        static int angle = 0, idx = 0;
-        usleep(10000);
-        keyResponse(keys[idx], 0, 0);
-        angle ++;
-        if ( angle >= 360 ) {
-            angle = 0;
-            idx ++;
-            if ( idx >= ARRAY_SIZE(keys) ) {
-                idx = 0;
-            }
-        }
-        //CGLIBoxApp::onIdle();
-        return;
-    }
-    // monitoring the shared memory block for interaction synchronization
-    if (!m_pIntInfo->bUpdated || !m_bSync) {
-        return;
-    }
+	if ( m_nSiblings < 1 ) {
+		/* this customized idle function will be used for self-rotating
+		 * exhibition
+		 */
+		char keys[] = {'j', 'h', 'i', 'l', 'k', ','};
+		static int angle = 0, idx = 0;
+		usleep(10000);
+		keyResponse(keys[idx], 0, 0);
+		angle ++;
+		if ( angle >= 360 ) {
+			angle = 0;
+			idx ++;
+			if ( idx >= ARRAY_SIZE(keys) ) {
+				idx = 0;
+			}
+		}
+		//CGLIBoxApp::onIdle();
+		return;
+	}
+	// monitoring the shared memory block for interaction synchronization
+	if (!m_pIntInfo->bUpdated || !m_bSync) {
+		return;
+	}
 
-    switch ( m_pIntInfo->event ) {
-        case IE_KEY_PRESSED:
-            {
-                _realkeyResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);
-            }
-            break;
-        case IE_SPECIAL_KEY:
-            {
-                _realSpecialResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);	
+	switch ( m_pIntInfo->event ) {
+		case IE_KEY_PRESSED:
+			{
+				_realkeyResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);
+			}
+			break;
+		case IE_SPECIAL_KEY:
+			{
+				_realSpecialResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);	
 			}
 			break;
 		case IE_MOUSE_CLICKED:
@@ -1293,8 +1364,8 @@ void CSitubeRender::drawCanvas(bool bGrid)
 				  -	(m_loader.getMaxCoord(2) + m_loader.getMinCoord(2))/2 );
 				  */
 	glTranslatef( 0,
-					60 - 124.26,
-					- 70.76
+					30 - 124.26,
+					- 70.76*2.0
 				  //60 -	(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2,
 				  //-	(m_loader.getMaxCoord(2) + m_loader.getMinCoord(2))/2 
 				  );
@@ -1469,9 +1540,9 @@ void CSitubeRender::drawSkeleton()
 	 */
 	glScalef(1.6,1.0,1.0);
 	glTranslatef(0,
-				60-124.26-mvmat[13],
+				30-124.26-mvmat[13],
 				//60-(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2 - mvmat[13],
-				mvmat[14]/4);
+				mvmat[14]/2);
 
 	// remove rotations but translations
 	for (int i=0;i<4;i++) {
@@ -1496,7 +1567,7 @@ void CSitubeRender::drawSkeleton()
 	for (unsigned long idx = 0; idx < szTotal; ++idx) {
 		vector<GLfloat> & curLine = m_skeletonLoader.getElement( idx );
 
-		if ( m_bUseOrgColor ) {
+		if ( !m_bUseOrgColor ) {
 			glInterleavedArrays(GL_C3F_V3F, 0, &curLine[0]);
 		}
 		else {
@@ -1610,7 +1681,7 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 			{
 				m_colorschemeIdx = ( m_colorschemeIdx + 1 ) % getNumberOfColorSchemes();
 				m_colormapper.setColorScheme( m_colorschemeIdx );
-				((CSphereColorMap*)m_pcmGadget)->setColorScheme( m_colorschemeIdx );
+				((CRectColorMap*)m_pcmGadget)->setColorScheme( m_colorschemeIdx );
 				((CAnatomyAxis*)m_paxesGagdet)->setColorScheme( m_colorschemeIdx );
 				m_cout << "coloring scheme switched to : " << m_colormapper.getName() << "\n";
 
@@ -1653,9 +1724,8 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 			return;
 		case 32: // Space bar to trigger next task if any
 			if ( "" != m_strfntask ) {
-				if ( 0 ) { //m_taskbox.iscovered() /*&& !m_taskbox.isPrompt()*/ ) {
-					//m_bGadgetEnabled = true;
-					//m_bIboxEnabled = true;
+				if ( 0 ) {//m_taskbox.iscovered()/* && !m_taskbox.isPrompt()*/ ) {
+					m_bGadgetEnabled = true;
 					m_taskbox.turncover(false);
 					m_cout << "Get into another task.\n";
 				}
@@ -1679,10 +1749,9 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 						m_cout << "Task completed with Answer : " << m_strAnswer << "\n";
 						cleanup();
 						exit(EXIT_SUCCESS);
-						//m_bIboxEnabled = true;
+						m_bIboxEnabled = true;
 						m_bGadgetEnabled = true;
 						m_taskbox.turncover(false);
-
 					}
 				}
 				break;
@@ -1764,66 +1833,31 @@ void CSitubeRender::_on_killed(int sig)
 	}
 }
 
-int CSitubeRender::_loadFiberIdx()
+void CSitubeRender::_drawMarkers()
 {
-	unsigned long szFibers=0, i=0, curIdx=0, last;
-	GLfloat mins[3] = {LOCAL_MAXDOUBLE, LOCAL_MAXDOUBLE, LOCAL_MAXDOUBLE}, 
-			maxs[3] = {-LOCAL_MAXDOUBLE, -LOCAL_MAXDOUBLE, -LOCAL_MAXDOUBLE};
-	// load fiber indices as standard key and compute the size of a box that
-	// will imaginarily wrap the median points of those fiber at the same time
-	ifstream ifs(m_strfnFiberIdx.c_str());
-	if ( !ifs.is_open() ) {
-		return -1;
+	glPushAttrib(GL_ALL_ATTRIB_BITS);
+	glDisable(GL_LIGHTING);
+	glColor3f(1.0, 1.0, 0.0);
+
+	glPushMatrix();
+
+	// draw box identities
+	for ( int k = 0; k < (int)m_boxes.size(); k++ ) {
+		ostringstream label;
+		label << (k+1) << ends;
+
+		/*
+		printText(label.str().c_str(), 
+				m_tumorBoxMax[k].x, m_tumorBoxMax[k].y, m_tumorBoxMax[k].z, 
+				0.0, 1.0, 1.0, 1.0, GLUT_BITMAP_TIMES_ROMAN_24);
+		*/
+		printStrokeText(label.str().c_str(), 
+				m_tumorBoxMax[k].x, m_tumorBoxMax[k].y, m_tumorBoxMax[k].z, 
+				0.0, 1.0, 1.0, 1.0);
 	}
+	glPopMatrix();
 
-	// the first line tell how many fiber are following
-	ifs >> m_nKey;
-	
-	// the second line tell how many fiber are following
-	ifs >> szFibers >> m_fKeyDiff;
-
-	if ( m_fKeyDiff < 0.2 ) {
-		m_nKey = 1;
-	}
-	else if ( m_fKeyDiff < 0.4 ) {
-		m_nKey = 2;
-	}
-	else {
-		m_nKey = 3;
-	}
-
-	// then each line tell a single integer as fiber indices
-	// NOTE: obviously we pressume a strict correspondence from source tgdata,
-	// the object geometry, to this fiber index file
-	while ( ifs && i < szFibers ) {
-		ifs >> curIdx;
-
-		if ( curIdx < 0 || curIdx >= m_alltubefaceIdxs.size() ) {
-			cerr << "FATAL: invalid source geometry or fiber indices in line: "
-				<< i << ".\n";
-			return -1;
-		}
-
-		last = m_alltubevertices[curIdx].size()/3 - 1;
-		for (int j = 0; j < 3; j++) {
-			if ( mins[j] > m_alltubevertices[curIdx][last*3+j] ) {
-				mins[j] = m_alltubevertices[curIdx][last*3+j];
-			}
-
-			if ( maxs[j] < m_alltubevertices[curIdx][last*3+j] ) {
-				maxs[j] = m_alltubevertices[curIdx][last*3+j];
-			}
-		}
-
-		m_expectedFiberIndices.insert( curIdx );
-		i++;
-	}
-
-	if ( i < szFibers ) {
-		cerr << "only " << i << " of expected " << szFibers << " fibers loaded.\n";
-	}
-
-	return 0;
+	glPopAttrib();
 }
 
 bool CSitubeRender::_getAnswer(unsigned char key)
@@ -1833,17 +1867,10 @@ bool CSitubeRender::_getAnswer(unsigned char key)
 		return false;
 	}
 
-	if ( '1' > key || '5' < key ) {
+	if ( '1' != key && '2' != key && '3' != key ) {
 		return false;
 	}
-
-	m_strAnswer = "0";
-	if ( m_fKeyDiff >= (key - '0' - 1)*0.1 &&
-		m_fKeyDiff <=  (key - '0')*0.1 ) {
-		m_strAnswer = "8";
-	}
 	*/
-
 	if ( m_curseloptidx == -1 ) {
 		return true;
 	}
@@ -1857,11 +1884,7 @@ bool CSitubeRender::_getAnswer(unsigned char key)
 		m_strAnswer += ('1' + m_nTaskAnswer);
 
 		if ( m_nKey == atoi(m_strAnswer.c_str()) ) {
-		/*
-		if ( m_fKeyDiff >= m_nTaskAnswer*0.1 &&
-				m_fKeyDiff <=  (m_nTaskAnswer + (m_nTaskAnswer==4?6:1) )*0.1 ) {
-		*/
-			m_strAnswer += " (correct)."; 
+			m_strAnswer += " (correct).";
 		}
 		else {
 			m_strAnswer += " (wrong).";
@@ -1874,6 +1897,413 @@ bool CSitubeRender::_getAnswer(unsigned char key)
 	//m_strAnswer += key;
 	return true;
 }
+
+int CSitubeRender::_loadTumorBoxpos()
+{
+	int nBoxes = (int)m_strfnTumorBoxes.size();
+	int nLineInbox = 0;
+	m_tumorBoxMin.resize( nBoxes );
+	m_tumorBoxMax.resize( nBoxes );
+
+	string discard;
+	double maxFA = .0, curFA;
+	//cout << "FAInfo: ";
+	for (int i = 0; i < nBoxes; i++) {
+		ifstream ifs(m_strfnTumorBoxes[i].c_str());
+		if ( !ifs.is_open() ) {
+			return -1;
+		}
+
+		// we only care about the 3 lines of the file
+		// 1st line: the task key, but not used in this version, so discarded
+		if ( !ifs ) return -1;
+		ifs >> discard;
+
+		// 2nd line: the coordinate of the minor corner of the tumor bounding box
+		if ( !ifs ) return -1;
+		ifs >> fixed >> setprecision(6);
+		ifs >> m_tumorBoxMin[i].x >> m_tumorBoxMin[i].y >> m_tumorBoxMin[i].z;
+
+		// 3rd line: the coordinate of the major corner of the tumor bounding box
+		if ( !ifs ) return -1;
+		ifs >> m_tumorBoxMax[i].x >> m_tumorBoxMax[i].y >> m_tumorBoxMax[i].z;
+
+		ifs.close();
+
+		/*
+		cout << "box " << i << " loaded:";
+		cout << m_tumorBoxMax[i] << m_tumorBoxMin[i] << "\n";
+		*/
+
+		m_boxes[i].setMinMax( m_tumorBoxMin[i].x, m_tumorBoxMin[i].y, m_tumorBoxMin[i].z,
+				m_tumorBoxMax[i].x, m_tumorBoxMax[i].y, m_tumorBoxMax[i].z);
+
+		curFA = _calBlockAvgFA(i, nLineInbox);
+		//cout << curFA << " " << nLineInbox << " ";
+		if ( curFA > maxFA ) {
+			maxFA= curFA;
+			m_nKey = i+2;
+		}
+	}
+
+	double faDiff = fabs(_calBlockAvgFA(0, nLineInbox) - _calBlockAvgFA(1, nLineInbox));
+	if (faDiff < 1e-2 ) {
+		//cout << "box 0: " << _calBlockAvgFA(0) << "\n";
+		//cout << "box 1: " << _calBlockAvgFA(1) << "\n";
+		m_nKey = 1;
+	}
+	//cout << faDiff << "\n";
+	//exit(0);
+
+	//cout << "max FA: " << maxFA << " key box: " << m_nKey << "\n";
+
+	return 0;
+}
+
+double CSitubeRender::_calBlockAvgFA(int boxIdx, int & nLineInbox)
+{
+	unsigned long szTotal = static_cast<unsigned long>( m_alltubevertices.size() );
+	double faTotal = .0, ptTotal = 0.0;
+	nLineInbox = 0;
+	for (unsigned long lineIdx = 0; lineIdx < szTotal; lineIdx++) {
+		const vector<GLfloat> & line = m_alltubevertices[ lineIdx ];
+		unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
+
+		double npt = 0;
+		for (unsigned long idx = 0; idx < szPts; idx++) {
+			if (m_boxes[boxIdx].isInside( 
+						line [ idx*6 + 3 ] - (m_maxCoord[0] + m_minCoord[0])/2, 
+						line [ idx*6 + 4 ] - (m_maxCoord[1] + m_minCoord[1])/2, 
+						line [ idx*6 + 5 ] - (m_maxCoord[2] + m_minCoord[2])/2)) {
+				faTotal += 1.0 - m_alltubecolors[ lineIdx ][ idx*6 + 1 ];
+				npt ++;
+			}
+		}
+		ptTotal += npt;
+		if ( npt > 0 ) {
+			nLineInbox ++;
+		}
+	}
+
+	if ( ptTotal < 1.0 ) return -1.0;
+	return faTotal / ptTotal;
+}
+
+
+void CSitubeRender::buildTubefromLineNew(unsigned long lineIdx)
+{
+    const vector<GLfloat> & line = m_loader.getElement( lineIdx );
+	unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
+	GLfloat xa,xb,ya,yb,za,zb,dx,dy,dz;
+	GLfloat segLen;   // length of streamline fragment
+	GLfloat scaleFactor; // scaling factor for generating quads
+	GLfloat r,g,b;		 // direction encoded color components
+
+	// geometry generated for constructing the streamtube
+	vector<GLfloat>		tube_vertices;
+	vector<GLfloat>		tube_normals;
+	vector<GLfloat>		tube_colors;
+    vector<GLfloat>     tube_texcoords;
+	vector<GLuint>		tube_faceIdxs;
+	vector<GLfloat>		tube_encodedcolors;
+
+	/* vertex array for each tube segment will contain all vertices needed to
+	 * contruct the faces, tinted by the color originally for the start point
+	 * of the source streamline segment,which is stored in the color array
+	 */
+	tube_vertices.resize ( szPts * m_lod * 3 );
+	tube_normals.resize( szPts * m_lod * 3 );
+    tube_texcoords.resize( szPts * m_lod * 2);
+
+	// szPts points contain szPts-1 line segments
+	//tube_colors.resize( (szPts-1) * 3 );
+	tube_colors.resize( szPts * m_lod * 3 );
+	tube_faceIdxs.resize( (szPts-1) * m_lod * 4 );
+
+	tube_encodedcolors.resize( szPts * m_lod * 3 );
+
+    vector<vector_t> end_a;
+    vector<vector_t> end_b;
+    vector<vector_t> normal_a, normal_b;
+
+    unsigned long fid = 0;  // for face indices
+	for (unsigned long idx1 = 1; idx1 < szPts; idx1++) 
+    {
+		unsigned long idx2 = idx1 - 1;
+        bool first_time = false;
+
+		/* for each segment in a single streamline, try to interpolate
+		 * a series of extraneous points to make the line segment look like a
+		 * tube segment by contructing a ring around the line fragment
+		 */
+        xa = line [ idx2*6 + 3 ];
+        ya = line [ idx2*6 + 4 ];
+        za = line [ idx2*6 + 5 ];
+
+        xb = line [ idx1*6 + 3 ];
+        yb = line [ idx1*6 + 4 ];
+        zb = line [ idx1*6 + 5 ];
+
+ 		// map the streamline segment vector's coordinate to the RGB color
+		// space
+		if ( szPts-1 == idx1 ) {
+			dx = xa - xb, dy = ya - yb, dz = za - zb;
+		}
+		else {
+			dx = xb - xa, dy = yb - ya, dz = zb - za;
+		}
+		if ( 0 != m_colormapper.getColor( dx, dy, dz, r, g ,b) ) {
+			// take the color for the start point as the color for the associated tube
+			// fragment
+
+			if ( szPts-1 > idx1 ) {
+				tube_encodedcolors[ idx1*3 + 0 ] = line [ idx1*6 + 0 ];
+				tube_encodedcolors[ idx1*3 + 1 ] = line [ idx1*6 + 1 ];
+				tube_encodedcolors[ idx1*3 + 2 ] = line [ idx1*6 + 2 ];
+			}
+		}
+
+        if ( m_bVradius ) {
+            segLen = magnitude(xa-xb, ya-yb, za-zb);
+            // .002 and .01 are just certain magic numbers .... used for
+            // tweaking the shape of tubes
+            scaleFactor = (segLen - m_fMinSegLen)/(m_fMaxSegLen - m_fMinSegLen) 
+                * (m_fbdRadius*.002 - m_fbdRadius*.01) +
+                m_fbdRadius*.01;
+        }
+        else {
+            scaleFactor = m_fRadius;
+        }
+
+
+
+        vector_t pa(xa, ya, za);
+        vector_t pb(xb, yb, zb);
+        vector_t da, db;
+
+        if( idx1 == 1 )
+        {
+            da = (pb - pa).normalize();
+            first_time = true;
+        }
+        else
+        {
+            vector_t prev( line[(idx1-2)*6 + 3], line[(idx1-2)*6 + 4], line[(idx1-2)*6 + 5] );
+            da = (((pa - prev).normalize() + (pb - pa).normalize()) * 0.5f).normalize();
+        }
+
+        if( idx1 == szPts - 1 )
+        {
+            db = (pb - pa).normalize();
+        }
+        else
+        {
+            vector_t next( line[(idx1+1)*6 + 3], line[(idx1+1)*6 + 4], line[(idx1+1)*6 + 5] );
+            db = (((pb - pa).normalize() + (next - pb).normalize()) * 0.5f).normalize();
+        }
+
+        cal_tube_geometry(pa, da, scaleFactor, pb, db, scaleFactor, m_lod+1, end_a, 
+                end_b, normal_a, normal_b, first_time);
+
+        vector<vector_t> *p_end, *p_normal;
+        unsigned long id;
+
+
+        if(first_time)
+        {
+            p_end = &end_a;
+            p_normal = &normal_a;
+            id = idx2;
+        }
+        else
+        {
+            p_end = &end_b;
+            p_normal = &normal_b;
+            id = idx1;
+        }
+
+        GLfloat v_step = 0.1f;  // control the texcoord generation
+        static GLfloat vf = 0.0f;
+
+        for (GLubyte l = 0; l < m_lod; ++l) 
+        {
+            GLfloat uf = (GLfloat)l / m_lod;
+
+            tube_normals[ fid*3 * m_lod + 3*l + 0 ] = (*p_normal)[l].x;
+            tube_normals[ fid*3 * m_lod + 3*l + 1 ] = (*p_normal)[l].y;
+            tube_normals[ fid*3 * m_lod + 3*l + 2 ] = (*p_normal)[l].z;
+            tube_vertices[ fid*3 * m_lod + 3*l + 0 ] = (*p_end)[l].x;
+            tube_vertices[ fid*3 * m_lod + 3*l + 1 ] = (*p_end)[l].y;
+            tube_vertices[ fid*3 * m_lod + 3*l + 2 ] = (*p_end)[l].z;
+            tube_colors [ fid*3 * m_lod + 3*l + 0 ] = line [ fid*6 + 0 ];
+            tube_colors [ fid*3 * m_lod + 3*l + 1 ] = line [ fid*6 + 1 ];
+            tube_colors [ fid*3 * m_lod + 3*l + 2 ] = line [ fid*6 + 2 ];
+            tube_encodedcolors [ fid*3 * m_lod + 3*l + 0 ] = r;
+            tube_encodedcolors [ fid*3 * m_lod + 3*l + 1 ] = g;
+            tube_encodedcolors [ fid*3 * m_lod + 3*l + 2 ] = b;
+            tube_texcoords[fid*2 * m_lod + 2*l + 0] = uf;
+            tube_texcoords[fid*2 * m_lod + 2*l + 1] = vf;
+
+            // find the maximal and minimal coordinats among the new
+            // vertices of the streamtubes
+            for (int j=0; j<3; ++j) {
+                if ( tube_vertices[ fid*3 * m_lod + 3*l + j ] > m_maxCoord[j] ) {
+                    m_maxCoord[j] = tube_vertices[ fid*3 * m_lod + 3*l + j ];
+                }
+                if ( tube_vertices[ fid*3 * m_lod + 3*l + j ] < m_minCoord[j] ) {
+                    m_minCoord[j] = tube_vertices[ fid*3 * m_lod + 3*l + j ];
+                }
+            }
+
+            // the tube is finally established by a multiple of quads
+            // and here we use vertex index to represent faces, each for a quad
+            if ( szPts-1 > fid) {
+                tube_faceIdxs [ fid*4 * m_lod + 4*l + 0 ] = fid*m_lod + l;
+                tube_faceIdxs [ fid*4 * m_lod + 4*l + 1 ] = (fid+1)*m_lod + l;
+                tube_faceIdxs [ fid*4 * m_lod + 4*l + 2 ] = (fid+1)*m_lod + (l + 1)%m_lod;
+                tube_faceIdxs [ fid*4 * m_lod + 4*l + 3 ] = fid*m_lod + (l + 1)%m_lod;
+            }
+        }
+
+        fid++;
+        for(int k = 0; k < end_b.size(); ++k) end_a[k] = end_b[k];
+        for(int k = 0; k < normal_b.size(); ++k) normal_a[k] = normal_b[k];
+        end_b.clear();
+        normal_b.clear();
+
+        vf += v_step;
+        if(vf > 1.f)
+            vf = 0.f;
+    }
+
+    // save the streamtube geometry for current streamline
+    m_alltubevertices[ lineIdx ] = tube_vertices;
+    m_alltubenormals[ lineIdx ] = tube_normals;
+    m_alltubecolors[ lineIdx ] = tube_colors;
+    m_alltubetexcoords[ lineIdx ] = tube_texcoords;
+    m_alltubefaceIdxs[ lineIdx ] = tube_faceIdxs;
+    m_encodedcolors[ lineIdx ] = tube_encodedcolors;
+
+}
+
+void CSitubeRender::rotation_matrix(vector_t& axis, float angle, vector_t matrix_row[3])
+{
+    float x = axis.x,
+          y = axis.y,
+          z = axis.z,
+          s = sin(angle),
+          c = cos(angle),
+          t = 1 - c;
+
+    matrix_row[0] = vector_t( t*x*x+c,   t*x*y-s*z, t*x*z+s*y );
+    matrix_row[1] = vector_t( t*x*y+s*z, t*y*y+c,   t*y*z-s*x );
+    matrix_row[2] = vector_t( t*x*z-s*y, t*y*z+s*x, t*z*z+c );
+}
+
+
+// intersect with triangles
+float CSitubeRender::intersect_plane(vector_t &v1, vector_t &n, vector_t &ori, vector_t &dir)
+{
+    if(fabs(n.dotproduct(dir) < 1e-7))
+        return -1;
+
+    float t = (n.dotproduct(v1) - n.dotproduct(ori)) / n.dotproduct(dir);
+
+    return t; 
+
+}
+
+
+
+
+void CSitubeRender::cal_tube_geometry(vector_t pa, vector_t da, float sa, vector_t pb, vector_t db, float sb, 
+        int segments, vector<vector_t> &end_a, vector<vector_t> &end_b,
+        vector<vector_t> &na, vector<vector_t> &nb, const bool first_time)
+{
+
+    vector_t up(0,1,0);
+
+    // each end starts as unit circle in xy plane
+    float angle = 0;
+    const float dangle = 2 * M_PI / segments;
+    for (int i = 0; i < segments; ++i, angle += dangle)
+    {
+        vector_t end = vector_t(cos(angle), sin(angle), 0);
+
+        if(first_time)
+        {
+            end_a.push_back(end);
+        }
+        end_b.push_back(end);
+    }
+
+    vector_t row[3];
+    float rot_angle;
+
+    if(first_time)
+    {
+        // rotate to the proper angle (end A first)
+        row[3]; // rows of rotation matrix
+        vector_t rot_axis_a = up.crossproduct(da).normalize();
+        rot_angle = acos(up.dotproduct(da));
+        rotation_matrix(rot_axis_a, rot_angle, row);
+
+        for (int i = 0; i < segments; ++i)
+        {
+            // rotate unit circle base at origin
+            vector_t rotated( row[0].dotproduct(end_a[i]),
+                    row[1].dotproduct(end_a[i]), 
+                    row[2].dotproduct(end_a[i]));
+            end_a[i] = rotated;
+            na.push_back(rotated);
+        }
+
+    }
+
+    // repeat for end B
+    vector_t rot_axis_b = up.crossproduct(db).normalize();
+    rot_angle = acos(up.dotproduct(db));
+    rotation_matrix(rot_axis_b, rot_angle, row);
+
+    for (int i = 0; i < segments; ++i)
+    {
+        // rotate unit circle base at origin
+        vector_t rotated( row[0].dotproduct(end_b[i]),
+                row[1].dotproduct(end_b[i]), 
+                row[2].dotproduct(end_b[i]));
+        end_b[i] = rotated;
+    }
+
+
+    for(int i = 0; i < segments; ++i)
+    {
+        if(first_time)
+            end_a[i] = pa + end_a[i] * sa;
+        end_b[i] = pb + end_b[i] * sb;
+    }
+
+    // inorder to avoid twisted tube
+    // the axis of the two endings may very different
+    // this may cause twisted tube
+
+    // get the plane of ending b
+    vector_t bnormal = db;
+    bnormal.normalize();
+
+    vector_t point = end_b[0];
+
+    for(int i = 0; i < segments; ++i)
+    {
+        vector_t dir = pb-pa;
+        float t = intersect_plane(point, bnormal, end_a[i], dir);
+        if(t < 0) continue;
+        end_b[i] = end_a[i] + dir * t; 
+        vector_t n = (end_b[i] - pb).normalize();
+        nb.push_back(n);
+    }
+}
+
+
 
 /* set ts=4 sts=4 tw=80 sw=4 */
 

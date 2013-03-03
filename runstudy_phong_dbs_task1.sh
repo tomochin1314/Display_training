@@ -7,7 +7,7 @@
 BASEDIR=`pwd`
 
 BINDIR=${BASEDIR}/bin/phong
-TASKDIRS="pretask task1 task2 task3 task4 task5 task6"
+TASKDIRS="task1"
 EXECUTABLES="singleitr_phong multiviewitr_phong multiwindowitr_phong"
 
 DATADIR=${BASEDIR}/data

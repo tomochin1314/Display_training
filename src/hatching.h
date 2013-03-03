@@ -25,7 +25,7 @@
 class CSitubeRender;
 
 #define SHADOW_MAP_RATIO 2 // shadow map size = SHADOW_MAP_RATIO * WINDOW_WIDTH, SHADOW_MAP_RATIO * WINDOW_HEIGHT
-#define RELOC_NUM 3   // at most 8, number of relocation depth texture
+#define RELOC_NUM 4   // at most 8, number of relocation depth texture
 #define RELOC_STEP 0.3
 #define RELOC_INIT 0.5  // relocation scale, smallest value
 
