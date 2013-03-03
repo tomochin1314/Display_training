@@ -3,6 +3,7 @@
 uniform sampler2D depth_map0;
 uniform sampler2D depth_map1;
 uniform sampler2D depth_map2; // the largest relocation scale
+uniform sampler2D depth_map3;
 uniform float depth_far;
 uniform float depth_near;
 uniform vec4 threshold0;
@@ -28,8 +29,9 @@ void main()
     float dist0 = texture2D(depth_map0, tex_coord_divided.st).x;
     float dist1 = texture2D(depth_map1, tex_coord_divided.st).x;
     float dist2 = texture2D(depth_map2, tex_coord_divided.st).x;
+    float dist3 = texture2D(depth_map3, tex_coord_divided.st).x;
 
-    float ref_dist = abs(camera_depth - dist2);
+    float ref_dist = abs(camera_depth - dist3);
     float diff = ref_dist;
     float scale = reloc_scale0.z;
     float shadow_tone;  // smaller distance, lighter shadow
@@ -49,8 +51,14 @@ void main()
     }
     else if(ref_dist <= thre.z)
     {
-        diff = ref_dist;
+        diff = abs(camera_depth - dist2);
         scale = reloc_scale0.z;
+        shadow_tone = 0.65;
+    }
+    else if(ref_dist <= thre.w)
+    {
+        diff = ref_dist;
+        scale = reloc_scale0.w;
         shadow_tone = 0.7;
     }
     else  // if the distance if too large, we don't draw any shadow
@@ -68,7 +76,12 @@ void main()
     }
     
     /*gl_FragDepth = shadow * diff;*/
+    /*
+     *if(shadow * diff == 0.f)
+     *    gl_FragColor = vec4(0.f, 1.f, 0.f, 1.f);
+     *else gl_FragColor = vec4(shadow_tone, 0.f, 0.f, 1.f);
+     */
     if(shadow * diff == 0.f)
-        gl_FragColor = vec4(0.f, 1.f, 0.f, 1.f);
-    else gl_FragColor = vec4(shadow_tone, 0.f, 0.f, 1.f);
+        gl_FragDepth = 0.f;
+    else gl_FragDepth = shadow_tone;
 }

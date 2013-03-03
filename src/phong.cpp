@@ -23,6 +23,7 @@ void phong_t::init_shader()
     depth_tex_reloc_uniform[0] = shadow_mask_shader->get_uniform_location("depth_map0");
     depth_tex_reloc_uniform[1] = shadow_mask_shader->get_uniform_location("depth_map1");
     depth_tex_reloc_uniform[2] = shadow_mask_shader->get_uniform_location("depth_map2");
+    depth_tex_reloc_uniform[3] = shadow_mask_shader->get_uniform_location("depth_map3");
 
 }
 
@@ -41,7 +42,7 @@ void phong_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         if(use_color_tex)
             glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
         else
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, w, h, 0, 
+            glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, 
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
         glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -68,7 +69,7 @@ void phong_t::generateShadowFBO()
         glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, depth_map_width, depth_map_height, 0, 
                       GL_RGBA, GL_UNSIGNED_BYTE, 0);
     else
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, depth_map_width, depth_map_height, 0, 
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depth_map_width, depth_map_height, 0, 
                       GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -582,8 +583,8 @@ void phong_t::init_misc()
 
 void phong_t::init_phong()
 {
-    use_color_tex = true;
-    //use_color_tex = false;
+    //use_color_tex = true;
+    use_color_tex = false;
     if(depth_based_shadow)
         generateShadowFBO();
 

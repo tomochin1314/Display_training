@@ -120,28 +120,22 @@
 //			highest FA value
 //
 //			--- 3D spherical color map changed to 2D rectangular color map
-// @mar. 14th
+// @Mar. 14th
 //			-- exclusively for task 0: select two vertices of the model, draw
 //			straight line with letter at the end as indicator; we want the user
 //			to compare FAs of the two vertices
 //			-- new member _getAnswer() is added to record what would be the
 //			user's answer to the question raised in the task
-// @Mar. 15th
-//			--- exclusively for task 2 : load a fiber index file to check if the
-//			marked region, a fiber bundle, includes fibers expected, i.e. fibers
-//			that are listed by indices in the  loaded file
-// @Mar. 16th
-//			--- exclusively for task 3: marking a specific (indicated by the
-//			loaded fiber indices) fiber bundle at the start points by attaching
-//			equal-size spheres as markers
-//			--- for task 3, since only moving is permitted for the box, mouse
-//			left button will need have no effect on box therefore.
-//			--- fix the box size as such that the end points of the expectedly
-//			selected fibers can be safely covered.
-// @Mar. 18th
-//			--- change the color of spherical marker at the start point of
-//			task-oriented expected fibers from white to yellow, which is more
-//			perceptible for humans
+// @Mar. 17th
+//			-- The way of getting FA points is changed from loading command line
+//			string argument to loading from a file; since We also want the task
+//			key is dynamically determined by loading at the runtime, rather than
+//			hardcoded in the program.
+//			NOTE: there is tragedy here : before moving on improving the FA
+//			point searching tool selectFApoints, this afternoon the change has
+//			been made and passed the test; Just sloppiness caused this
+//			resumption since task6/situbeRender.* covered the code in these two
+//			files for task0 including this change!..
 //
 // Author: 2011-2012 Haipeng Cai
 //
@@ -156,7 +150,7 @@
 #include "GLoader.h"
 #include "GLiboxmoth.h"
 #include "glrand.h"
-#include "hatching.h"
+#include "phong.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -179,6 +173,8 @@ typedef enum _input_event_t {
 	IE_MOUSE_WHEEL_ROLL,
 	IE_NONE = -1
 }input_event_t;
+
+class CSelectFAPoints;
 
 class CSitubeRender: public CGLIBoxApp {
 protected:
@@ -206,15 +202,17 @@ protected:
 
 	static const char* SITR_SHM_NAME;
     //
-    // use this class to do hatching shading
+    // use this class to do phong shading
     //
-    friend class hatching_t;
-    hatching_t *hatching;
+    friend class phong_t;
+    phong_t *phong;
     int m_nHalo;
     int m_nShadow;
 
 
 public:
+	friend class CSelectFAPoints;
+
 	CSitubeRender(int argc, char **argv);
 	virtual ~CSitubeRender();
 
@@ -231,6 +229,16 @@ public:
 	 * created by loading the input geometry of streamlines
 	 */
 	void buildTubefromLine(unsigned long lineIdx);
+
+    // add by XLM, new method to build tubes
+    void buildTubefromLineNew(unsigned long lineIdx);
+    void cal_tube_geometry(vector_t pa, vector_t da, float sa, vector_t pb, vector_t db, float sb, 
+                                     int segments, vector<vector_t> &end_a, vector<vector_t> &end_b,
+                                     vector<vector_t> &na, vector<vector_t> &nb, const bool first_time);
+    void rotation_matrix(vector_t& axis, float angle, vector_t matrix_row[3]);
+    // intersect with triangles
+    float intersect_plane(vector_t &v1, vector_t &n, vector_t &ori, vector_t &dir);
+    // add by XLM, new method to build tubes
 
 	/*
 	 * serialize the streamtube geometry generated into a file in the format
@@ -256,7 +264,7 @@ public:
 	 * judge if the tube indicated by the index within the streamtube store is
 	 * inside all selection boxes
 	 */
-	bool isTubeInSelbox(unsigned long lineIdx);
+	bool isTubeInSelbox(const vector<GLfloat>& line);
 
 	// overloadings to those in the parent class for customized actions
 	void glInit(void);
@@ -271,7 +279,7 @@ public:
 
 	int mainstay();
     void draw_tubes();
-	void draw();
+	void do_draw();
 	void onIdle(void);
 
 	// tell the number of sibling processes in order to realize an imperative
@@ -329,8 +337,6 @@ private:
 	/* text file holding a list of tasks for a single session */
 	string m_strfntask;
 
-	string m_strfnskeleton;
-
 	/* Level of Detail, the granularity of interpolation in the fabrication of
 	 * streamtube geometry*/
 	GLubyte				m_lod;
@@ -357,8 +363,8 @@ private:
 	vector< vector<GLfloat> >		m_alltubevertices;
 	vector< vector<GLfloat>	>		m_alltubenormals;
 	vector< vector<GLfloat>	>		m_alltubecolors;
-    vector< vector<GLfloat> >       m_alltubetexcoords;
 	vector< vector<GLfloat>	>		m_encodedcolors;
+    vector< vector<GLfloat> >       m_alltubetexcoords;
 	vector< vector<GLuint> >		m_alltubefaceIdxs;
 
 	/* get the maximal X,Y and Z coordinate among all vertices */
@@ -409,22 +415,27 @@ private:
 	/* to suspend entrance into GL event loop or to release it to make enter */
 	bool m_bSuspended;
 
-	// file containing indices of expectedly selected fibers
-	std::string m_strfnFiberIdx;
-
-	// set of the loaded fiber indices
-	std::set<unsigned long> m_expectedFiberIndices;
-
 	// record what the user typed as the answer to the task 
 	std::string m_strAnswer;
 
 	// the expected answer, i.e. the key
 	int m_nKey;
-	double m_fKeyDiff;
+
+	/* another streamline geometry as the fiber bundle skeleton associated with
+	 * the primary geometries in m_strfnsrc
+	 */
+	string m_strfnskeleton;
 
 	/* if the skeleton projection has been initializd */
 	bool m_bSkeletonPrjInitialized;
+
+	std::vector< std::string > m_strfnTumorBoxes;
+	// the opposite corner of the tumor bounding box
+	std::vector< _point_t<GLfloat> > m_tumorBoxMin, m_tumorBoxMax;
+
+	int m_nFlip;
 private:
+
 	// draw a canvas to which the skeleton will be projected
 	void drawCanvas(bool bGrid = true);
 
@@ -472,12 +483,15 @@ private:
 	 */
 	static void _on_killed(int sig);
 
-	// load fiber indices from a file where the indices of fibers constituting a
-	// predefined fiber bundle are prepared therein.
-	int _loadFiberIdx();
+	// draw markers at start points of a predefined fiber bundle
+	void _drawMarkers();
 
-	// simply read user's keyboard type as the answer
 	bool _getAnswer(unsigned char key);
+	// load bounding box information for the tumor potato
+	int _loadTumorBoxpos();
+
+	// calculate block average FA and compare, thus decide upon the key box
+	double _calBlockAvgFA(int boxIdx, int& nLineInbox);
 };
 
 #endif // _SITUBERENDER_H_
