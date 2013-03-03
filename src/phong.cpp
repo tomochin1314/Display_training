@@ -40,7 +40,7 @@ void phong_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
         if(use_color_tex)
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
         else
             glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, 
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -66,7 +66,7 @@ void phong_t::generateShadowFBO()
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     if(use_color_tex)
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, depth_map_width, depth_map_height, 0, 
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, depth_map_width, depth_map_height, 0, 
                       GL_RGBA, GL_UNSIGNED_BYTE, 0);
     else
         glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depth_map_width, depth_map_height, 0, 
@@ -187,7 +187,7 @@ void phong_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     if(use_color_tex)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D, depth_tex_id, 0);
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        //glDrawBuffer(GL_COLOR_ATTACHMENT0);
         glClearColor(0.0, 1.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);    
     }
@@ -200,7 +200,6 @@ void phong_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     }
 
     glViewport(0, 0, depth_map_width, depth_map_height);
-    glDisable(GL_CULL_FACE);
 
     tr->draw_tubes();
 
@@ -222,7 +221,6 @@ void phong_t::render_shadow_mask_tex()
     // I don't know why
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glDisable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
 
     shadow_mask_shader->on();
@@ -296,7 +294,6 @@ void phong_t::render_phong()
     glEnable( GL_POLYGON_SMOOTH);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 
-    glDisable(GL_CULL_FACE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
