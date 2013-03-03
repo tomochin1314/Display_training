@@ -83,5 +83,5 @@ void main()
      */
     if(shadow * diff == 0.f)
         gl_FragDepth = 0.;
-    else gl_FragDepth = shadow_tone;
+    else gl_FragColor = shadow_tone;
 }
