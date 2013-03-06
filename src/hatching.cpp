@@ -462,7 +462,7 @@ void hatching_t::render()
 
     render_hatching();
 
-    render_tex(depth_tex_reloc_id[0]);
+    //render_tex(depth_tex_reloc_id[0]);
     //render_tex(hatch_tex[0]);
     //render_tex(shadow_mask_tex_id);
 
