@@ -92,10 +92,6 @@ void phong_t::generateShadowFBO()
     // create a framebuffer object
     glGenFramebuffers(1, &fbo_id);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_id);
-    glGenRenderbuffers(1, &rbo_id);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, depth_map_width, depth_map_height);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     
     // attach the texture to FBO depth attachment point
@@ -184,6 +180,8 @@ void phong_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     glBindFramebuffer(GL_FRAMEBUFFER,fbo_id);	//Rendering offscreen
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
+	glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
     if(use_color_tex)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D, depth_tex_id, 0);

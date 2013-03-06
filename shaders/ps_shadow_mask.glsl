@@ -3,7 +3,6 @@
 uniform sampler2D depth_map0;
 uniform sampler2D depth_map1;
 uniform sampler2D depth_map2;
-uniform sampler2D depth_map3;
 uniform sampler2D depth_map3; // the largest relocation scale
 uniform float depth_far;
 uniform float depth_near;

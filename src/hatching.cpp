@@ -39,8 +39,8 @@ void hatching_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         // Try to use a texture depth component
         glGenTextures(1, &depth_tex_reloc_id[i]);
         glBindTexture(GL_TEXTURE_2D, depth_tex_reloc_id[i]);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         // Remove artefact on the edges of the shadowmap
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -66,8 +66,8 @@ void hatching_t::generateShadowFBO()
     // Try to use a texture depth component
     glGenTextures(1, &shadow_mask_tex_id);
     glBindTexture(GL_TEXTURE_2D, shadow_mask_tex_id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     if(use_color_tex)
@@ -93,16 +93,9 @@ void hatching_t::generateShadowFBO()
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
+    glGenFramebuffersEXT(1, &fbo_id);
+    glBindFramebufferEXT(GL_FRAMEBUFFER, fbo_id);
 
-    // create a framebuffer object
-    glGenFramebuffers(1, &fbo_id);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo_id);
-    glGenRenderbuffers(1, &rbo_id);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, depth_map_width, depth_map_height);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    
     // attach the texture to FBO depth attachment point
     if(use_color_tex)
     {
@@ -241,7 +234,6 @@ void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     }
 
     glViewport(0, 0, depth_map_width, depth_map_height);
-    glDisable(GL_CULL_FACE);
 
     tr->draw_tubes();
 
@@ -263,7 +255,6 @@ void hatching_t::render_shadow_mask_tex()
     // I don't know why
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glDisable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
 
     shadow_mask_shader->on();
@@ -337,7 +328,6 @@ void hatching_t::render_hatching()
     glEnable( GL_POLYGON_SMOOTH);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 
-    glDisable(GL_CULL_FACE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
@@ -477,7 +467,7 @@ void hatching_t::render()
 
     render_hatching();
 
-    //render_tex(depth_tex_reloc_id[0]);
+    render_tex(depth_tex_reloc_id[0]);
     //render_tex(hatch_tex[0]);
     //render_tex(shadow_mask_tex_id);
 
@@ -676,7 +666,9 @@ void hatching_t::read_tonal_art_maps()
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,twidth,theight,0,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
-        gluBuild2DMipmaps(GL_TEXTURE_2D,GL_RGBA,twidth,theight,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
+        //gluBuild2DMipmaps(GL_TEXTURE_2D,GL_RGBA,twidth,theight,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
+        //glGenerateMipmap(GL_TEXTURE_2D);
+        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE); // automatic mipmap generation included in OpenGL v1.4
         glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -801,8 +793,8 @@ void hatching_t::init_misc()
 
 void hatching_t::init_hatching()
 {
-    //use_color_tex = true;
-    use_color_tex = false;
+    use_color_tex = true;
+    //use_color_tex = false;
     generateShadowFBO();
     init_shader();
     read_tonal_art_maps();
