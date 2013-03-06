@@ -205,6 +205,7 @@ void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     // I don't know why
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glDisable(GL_CULL_FACE);
        
     depth_shader->on();
 
@@ -257,6 +258,7 @@ void hatching_t::render_shadow_mask_tex()
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glEnable(GL_DEPTH_TEST);
 
+    glDisable(GL_CULL_FACE);
     shadow_mask_shader->on();
 
     shadow_mask_shader->set_uniform3f("camera_pos", eye[0], eye[1], eye[2]);

@@ -6,7 +6,15 @@ SRCDIR=${BASEDIR}/src
 BINDIR=${BASEDIR}/bin
 DATADIR=${BASEDIR}/data
 EXECUTABLES="singleitr multiviewitr multiwindowitr"
-TASKDIRS=${1:-"task2"}
+#TASKDIRS=${1:-"task2"}
+
+
+if [ $# -lt 1 ];then
+    echo "Usage: $0 <task name>"
+    exit 1
+fi
+
+TASKDIRS=$1
 
 if [ ! -d ${SRCDIR} ];then
 	echo "FATAL: directory ${SRCDIR} NOT found."
