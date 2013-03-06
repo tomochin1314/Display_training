@@ -1,0 +1,3 @@
+situbeRender.cpp:void CSitubeRender::setNumberOfSiblings(int n)
+situbeRender.cpp:		m_psitInstance->setNumberOfSiblings(-1);
+situbeRender.h:	void setNumberOfSiblings(int n);

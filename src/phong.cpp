@@ -40,7 +40,7 @@ void phong_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
         if(use_color_tex)
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, 0);
         else
             glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, 
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -66,8 +66,8 @@ void phong_t::generateShadowFBO()
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     if(use_color_tex)
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, depth_map_width, depth_map_height, 0, 
-                      GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, depth_map_width, depth_map_height, 0, 
+                      GL_RGBA, GL_FLOAT, 0);
     else
         glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depth_map_width, depth_map_height, 0, 
                       GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -115,8 +115,8 @@ void phong_t::generateShadowFBO()
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     // check FBO status
-    error::checkFramebufferStatus();
-    error::printFramebufferInfo();
+    //error::checkFramebufferStatus();
+    //error::printFramebufferInfo();
 
     // switch back to window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -205,7 +205,7 @@ void phong_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 
     glBindFramebuffer(GL_FRAMEBUFFER,0);	
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 
@@ -271,7 +271,7 @@ void phong_t::render_shadow_mask_tex()
 
     glPopAttrib();
 
-    print_error();    
+    //print_error();    
 }
 
 //
@@ -281,17 +281,7 @@ void phong_t::render_phong()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
-    glShadeModel(GL_SMOOTH);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glEnable( GL_BLEND );
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    glEnable( GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_LINE_SMOOTH );
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_POLYGON_SMOOTH);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-
+    glEnable(GL_MULTISAMPLE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
@@ -328,11 +318,16 @@ void phong_t::render_phong()
 
     p_phong_shader->off();
 
+    // draw the caps of tube separately
+    phong_shader->on();
+    tr->draw_tube_caps();
+    phong_shader->off();
+
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].off();
 
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 void phong_t::render_halo()
@@ -533,7 +528,7 @@ void phong_t::init_material()
     mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.2f;
     mat_ambient[3] = 1.0f;
 
-    shininess = 64.0f;
+    shininess = 32.0f;
 }
 
 
@@ -553,8 +548,8 @@ void phong_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
         shadow_len_threshold.push_back(dist);
     }
 
-    for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
+    //for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
+        //printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
@@ -571,8 +566,8 @@ void phong_t::init_misc()
         shadow_length += slen_step;
     }
 
-    for(GLuint i = 0; i < relocation_level.size(); ++i)
-        printf("shadow length levels:%f\n", relocation_level[i]);
+    //for(GLuint i = 0; i < relocation_level.size(); ++i)
+        //printf("shadow length levels:%f\n", relocation_level[i]);
     calc_shadow_len_threshold(slen_step);
 }
 

@@ -116,7 +116,7 @@
 #include <string>
 #include <map>
 
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include <glrand.h>
 
 using std::string;

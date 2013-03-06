@@ -125,7 +125,7 @@ void main()
             hatchTex5;
 
     /*}*/
-    gl_FragColor = shadow_factor * hatchColor * gl_Color;
+    gl_FragColor = vec4(shadow_factor * hatchColor * gl_Color.xyz, gl_Color.a);
     /*gl_FragColor = vec4(tex_coord_hatching.xy, 0.f, 1.0);;*/
     /*gl_FragColor = vec4(mask/10.f, 0.f, 0.f, 1.0f);*/
 }

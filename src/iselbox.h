@@ -176,7 +176,7 @@
 #include <iostream>
 #include <vector>
 
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include "glrand.h"
 #include "point.h"
 #include "cppmoth.h"

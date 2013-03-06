@@ -117,8 +117,8 @@ void hatching_t::generateShadowFBO()
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     // check FBO status
-    error::checkFramebufferStatus();
-    error::printFramebufferInfo();
+    //error::checkFramebufferStatus();
+    //error::printFramebufferInfo();
 
     // switch back to window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -241,7 +241,7 @@ void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 
     glBindFramebuffer(GL_FRAMEBUFFER,0);	
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 
@@ -307,7 +307,7 @@ void hatching_t::render_shadow_mask_tex()
 
     glPopAttrib();
 
-    print_error();    
+    //print_error();    
 }
 
 //
@@ -317,17 +317,7 @@ void hatching_t::render_hatching()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
-    glShadeModel(GL_SMOOTH);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glEnable( GL_BLEND );
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    glEnable( GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_LINE_SMOOTH );
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_POLYGON_SMOOTH);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-
+    glEnable(GL_MULTISAMPLE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
@@ -368,11 +358,16 @@ void hatching_t::render_hatching()
 
     p_hatching_shader->off();
 
+    // draw the caps of tube separately
+    hatching_shader->on();
+    tr->draw_tube_caps();
+    hatching_shader->off();
+
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].off();
 
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 void hatching_t::render_halo()
@@ -665,10 +660,7 @@ void hatching_t::read_tonal_art_maps()
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,twidth,theight,0,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
-        //gluBuild2DMipmaps(GL_TEXTURE_2D,GL_RGBA,twidth,theight,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
-        //glGenerateMipmap(GL_TEXTURE_2D);
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE); // automatic mipmap generation included in OpenGL v1.4
+        gluBuild2DMipmaps(GL_TEXTURE_2D,GL_RGBA,twidth,theight,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
         glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -749,7 +741,7 @@ void hatching_t::init_material()
     mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.1f;
     mat_ambient[3] = 1.0f;
 
-    shininess = 64.0f;
+    shininess = 128.0f;
 }
 
 // the length of shadow is related with the distance between two tubes
@@ -768,8 +760,8 @@ void hatching_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
         shadow_len_threshold.push_back(dist);
     }
 
-    for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
+    //for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
+        //printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
@@ -786,8 +778,8 @@ void hatching_t::init_misc()
         shadow_length += slen_step;
     }
 
-    for(GLuint i = 0; i < relocation_level.size(); ++i)
-        printf("shadow length levels:%f\n", relocation_level[i]);
+    //for(GLuint i = 0; i < relocation_level.size(); ++i)
+        //printf("shadow length levels:%f\n", relocation_level[i]);
     calc_shadow_len_threshold(slen_step);
 }
 

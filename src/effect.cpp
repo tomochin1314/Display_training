@@ -1,20 +1,20 @@
-#include "tone.h"
+#include "effect.h"
 #include "situbeRender.h"
 
-void tone_t::init_shader()
+
+void effect_t::init_shader()
 {
     depth_shader       = new shader_t("shaders/vs_depth.glsl", "shaders/ps_depth.glsl");
     shadow_mask_shader = new shader_t("shaders/vs_shadow_mask.glsl", "shaders/ps_shadow_mask.glsl");
-    dbs_tone_shader   = new shader_t("shaders/vs_depth_encoded_phong.glsl",
-                                      "shaders/ps_depth_encoded_tone.glsl");
-    tone_shader       = new shader_t("shaders/vs_phong.glsl", "shaders/ps_tone.glsl");
-
+    dbs_phong_shader   = new shader_t("shaders/vs_depth_encoded_phong.glsl",
+                                      "shaders/ps_depth_encoded_phong.glsl");
+    phong_shader       = new shader_t("shaders/vs_phong.glsl", "shaders/ps_phong.glsl");
 
     halo_shader       = new shader_t("shaders/vs_halo.glsl", "shaders/ps_halo.glsl");
 
     if(depth_based_shadow)
-        p_tone_shader  = dbs_tone_shader;
-    else p_tone_shader = tone_shader;
+        p_phong_shader  = dbs_phong_shader;
+    else p_phong_shader = phong_shader;
 
 
     threshold_uniform0         = shadow_mask_shader->get_uniform_location("threshold0");
@@ -24,9 +24,10 @@ void tone_t::init_shader()
     depth_tex_reloc_uniform[1] = shadow_mask_shader->get_uniform_location("depth_map1");
     depth_tex_reloc_uniform[2] = shadow_mask_shader->get_uniform_location("depth_map2");
     depth_tex_reloc_uniform[3] = shadow_mask_shader->get_uniform_location("depth_map3");
+
 }
 
-void tone_t::gen_reloc_depth_tex(GLuint w, GLuint h)
+void effect_t::gen_reloc_depth_tex(GLuint w, GLuint h)
 {
     for(GLuint i = 0; i < RELOC_NUM; ++i)
     {
@@ -39,7 +40,7 @@ void tone_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
         if(use_color_tex)
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, 0);
         else
             glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, 
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -49,7 +50,7 @@ void tone_t::gen_reloc_depth_tex(GLuint w, GLuint h)
 }
 
 
-void tone_t::generateShadowFBO()
+void effect_t::generateShadowFBO()
 {
     depth_map_width  = tr->m_width * SHADOW_MAP_RATIO;
     depth_map_height = tr->m_height * SHADOW_MAP_RATIO;
@@ -65,8 +66,8 @@ void tone_t::generateShadowFBO()
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     if(use_color_tex)
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, depth_map_width, depth_map_height, 0, 
-                      GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, depth_map_width, depth_map_height, 0, 
+                      GL_RGBA, GL_FLOAT, 0);
     else
         glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depth_map_width, depth_map_height, 0, 
                       GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -91,10 +92,6 @@ void tone_t::generateShadowFBO()
     // create a framebuffer object
     glGenFramebuffers(1, &fbo_id);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_id);
-    glGenRenderbuffers(1, &rbo_id);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, depth_map_width, depth_map_height);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     
     // attach the texture to FBO depth attachment point
@@ -118,14 +115,14 @@ void tone_t::generateShadowFBO()
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     // check FBO status
-    //error::checkFramebufferStatus();
-    //error::printFramebufferInfo();
+    error::checkFramebufferStatus();
+    error::printFramebufferInfo();
 
     // switch back to window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void tone_t::setTextureMatrix(GLuint tex_unit_id)
+void effect_t::setTextureMatrix(GLuint tex_unit_id)
 {
     static double modelView[16];
     static double projection[16];
@@ -163,7 +160,7 @@ void tone_t::setTextureMatrix(GLuint tex_unit_id)
 //
 // the first pass
 //
-void tone_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
+void effect_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 {
     // if not push all attrib here, 
     // just push enable bits and viewport bits, will be somehing wrong
@@ -186,7 +183,7 @@ void tone_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     if(use_color_tex)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D, depth_tex_id, 0);
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        //glDrawBuffer(GL_COLOR_ATTACHMENT0);
         glClearColor(0.0, 1.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);    
     }
@@ -206,14 +203,14 @@ void tone_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 
     glBindFramebuffer(GL_FRAMEBUFFER,0);	
     glPopAttrib();
-    //print_error();    
+    print_error();    
 }
 
 
 //
 // the second pass
 //
-void tone_t::render_shadow_mask_tex()
+void effect_t::render_shadow_mask_tex()
 {
     // if not push all attrib here, 
     // just push enable bits and viewport bits, will be somehing wrong
@@ -272,24 +269,24 @@ void tone_t::render_shadow_mask_tex()
 
     glPopAttrib();
 
-    //print_error();    
+    print_error();    
 }
 
 //
 //  the third pass
 //
-void tone_t::render_tone()
+void effect_t::render_phong()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
-
+    glDisable(GL_BLEND);
     glEnable(GL_MULTISAMPLE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
 
     //Using the shadow shader
-    p_tone_shader->on();
+    p_phong_shader->on();
 
     if(depth_based_shadow)
     {
@@ -309,7 +306,7 @@ void tone_t::render_tone()
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         glActiveTextureARB(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D,shadow_mask_tex_id);
-        p_tone_shader->set_uniform1i("shadow_mask", 6);
+        p_phong_shader->set_uniform1i("shadow_mask", 6);
     }
 
     glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
@@ -318,21 +315,16 @@ void tone_t::render_tone()
 
     tr->draw_tubes();
 
-    p_tone_shader->off();
-
-    // draw the caps of tube separately
-    tone_shader->on();
-    tr->draw_tube_caps();
-    tone_shader->off();
+    p_phong_shader->off();
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].off();
 
     glPopAttrib();
-    //print_error();    
+    print_error();    
 }
 
-void tone_t::render_halo()
+void effect_t::render_halo()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     for(GLuint i = 0; i < lights.size(); ++i)
@@ -348,14 +340,13 @@ void tone_t::render_halo()
 
     tr->draw_tubes();
     halo_shader->off();
-
     glPopAttrib();
 
 }
 
 // DEBUG only. this piece of code draw the depth buffer onscreen
 // Don't call glClear in this function
-void tone_t::render_tex(GLuint tex_id)
+void effect_t::render_tex(GLuint tex_id)
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 	glPushClientAttrib(GL_ALL_CLIENT_ATTRIB_BITS);
@@ -406,7 +397,7 @@ void tone_t::render_tex(GLuint tex_id)
     glPopAttrib();
 }
 
-void tone_t::render() 
+void effect_t::render() 
 {
     calc_camera();
 
@@ -422,7 +413,7 @@ void tone_t::render()
         render_shadow_mask_tex();
     }
 
-    render_tone();
+    render_phong();
 
     //render_tex(depth_tex_reloc_id[0]);
     //render_tex(hatch_tex[0]);
@@ -434,7 +425,7 @@ void tone_t::render()
     glMatrixMode(GL_MODELVIEW);
 }
 
-void tone_t::calc_camera()
+void effect_t::calc_camera()
 {
     look_at[0] = ( tr->m_minCoord[0] + tr->m_maxCoord[0] ) * 0.5f; 
     look_at[1] = ( tr->m_minCoord[1] + tr->m_maxCoord[1] ) * 0.5f;
@@ -471,7 +462,9 @@ void tone_t::calc_camera()
 
 }
 
-void tone_t::init_light()
+//
+// the setup of light color is put in shader file, which is shaders/ps_phong.glsl
+void effect_t::init_light()
 {
     lights.clear();
 
@@ -487,7 +480,7 @@ void tone_t::init_light()
     center.z = (tr->m_maxCoord[2] + tr->m_minCoord[2]) / 2.f;
 
 
-// set eye light
+    // set eye light
     light_t eye_light;
     eye_light.moveTo(eye);
     //eye_light.off();
@@ -521,14 +514,15 @@ void tone_t::init_light()
     lights.push_back(rt_light);
 }
 
-void tone_t::init_material()
+// do not set diffuse material, because we used glcolormaterial
+void effect_t::init_material()
 {
     mat_specular[0] = mat_specular[1] = mat_specular[2] = mat_specular[3] = 1.0f;
 
-    mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.1f;
+    mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.2f;
     mat_ambient[3] = 1.0f;
 
-    shininess = 64.0f;
+    shininess = 128.0f;
 }
 
 
@@ -537,7 +531,7 @@ void tone_t::init_material()
 // the function is: dist = (maxdist + 1)^(slen/max_slen) - 1
 // here we use slen+slen_step instead of slen
 // inorder to  map to larger interval of dist
-void tone_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
+void effect_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
 {
     float max_dist = tr->m_fbdRadius *2.f; 
 
@@ -548,12 +542,12 @@ void tone_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
         shadow_len_threshold.push_back(dist);
     }
 
-    //for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        //printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
+    for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
+        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
-void tone_t::init_misc()
+void effect_t::init_misc()
 {
     GLfloat slen_step = (MAX_SHADOW_LEN - MIN_SHADOW_LEN) / RELOC_NUM;
 
@@ -566,12 +560,12 @@ void tone_t::init_misc()
         shadow_length += slen_step;
     }
 
-    //for(GLuint i = 0; i < relocation_level.size(); ++i)
-        //printf("shadow length levels:%f\n", relocation_level[i]);
+    for(GLuint i = 0; i < relocation_level.size(); ++i)
+        printf("shadow length levels:%f\n", relocation_level[i]);
     calc_shadow_len_threshold(slen_step);
 }
 
-void tone_t::init_tone()
+void effect_t::init_phong()
 {
     //use_color_tex = true;
     use_color_tex = false;
@@ -584,10 +578,9 @@ void tone_t::init_tone()
     init_material();
 }
 
-void tone_t::print_error()
+void effect_t::print_error()
 {
     GLenum error = glGetError();
     printf("error code: %d, %x\n", error, error);
 }
-
 

@@ -3,10 +3,9 @@
 
 BASEDIR=`pwd`
 SRCDIR=${BASEDIR}/src
-BINDIR=${BASEDIR}/bin
 DATADIR=${BASEDIR}/data
+BINDIR=${BASEDIR}/bin
 EXECUTABLES="singleitr multiviewitr multiwindowitr"
-TECHS=${1:-"phong phong_halo tone tone_halo ao ao_halo hatching_dbs hatching_dbs_halo"}
 TASKDIRS=${1:-"pretask task1 task2 task3 task4 task5 task6"}
 
 if [ ! -d ${SRCDIR} ];then
@@ -16,43 +15,35 @@ fi
 
 #build executables for each of the tasks and set them up in task-wise
 #sub-directories under the $BIN directory
-
 mkdir -p ${BINDIR} ${DATADIR}
-
-for tc in ${TECHS}
+for ts in ${TASKDIRS}
 do
-    for ts in ${TASKDIRS}
-    do
-        echo -e "building for ${ts} of ${tc}..."
-        mkdir -p ${BINDIR}/${tc}/${ts}
+	echo -e "building for ${ts}..."
+	mkdir -p ${BINDIR}/${ts}
 
-        if [ ! -d ${SRCDIR}/${tc}/${ts} ];then
-            echo "FATAL: sub-directory ${SRC}/${tc}/${ts} NOT found."
-            rm -rf ${BINDIR}/*
-            exit -1
-        fi
+	if [ ! -d ${SRCDIR}/${ts} ];then
+		echo "FATAL: sub-directory ${SRC}/${ts} NOT found."
+		rm -rf ${BINDIR}/*
+		exit -1
+	fi
 
-        cp ${SRCDIR}/${tc}/${ts}/*.{h,cpp} ${SRCDIR}
-        make -C ${SRCDIR} -w -f Makefile_${tc} all
+	cp ${SRCDIR}/${ts}/*.{h,cpp} ${SRCDIR}
+	make -C ${SRCDIR} -w all
 
-        for bin in ${EXECUTABLES}
-        do
-            if [ ! -s ${SRCDIR}/${bin}_${tc} ];then
-                echo "ERROR: executable ${SRCDIR}/${bin}_${tc} for ${ts} of ${tc} failed to be built."
-                rm -rf ${BINDIR}/*
-                exit -1
-            fi
+	for bin in ${EXECUTABLES}
+	do
+		if [ ! -s ${SRCDIR}/${bin} ];then
+			echo "ERROR: executable ${SRCDIR}/${bin} for ${ts} failed to be built."
+			rm -rf ${BINDIR}/*
+			exit -1
+		fi
+		mv -f ${SRCDIR}/${bin} ${BINDIR}/${ts}
+	done
+	make -C ${SRCDIR} -w cleanall
 
-            mv -f ${SRCDIR}/${bin}_${tc} ${BINDIR}/${tc}/${ts}
-        done
-        make -C ${SRCDIR} -w -f Makefile_${tc} cleanall
+	cp ${SRCDIR}/${ts}/{tasktext,helptext} ${BINDIR}/${ts}
 
-        cp ${SRCDIR}/${tc}/${ts}/{tasktext,helptext} ${BINDIR}/${tc}/${ts}
-
-        echo -e "\t\t------ finished."
-    done
-
-    echo -e "\t\t------ ${tc} finished."
+	echo -e "\t\t------ finished."
 done
 
 echo -e "\n\t---- setup completed ----\t\n"

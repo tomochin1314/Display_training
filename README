@@ -1,0 +1,7 @@
+run study using ./run.sh <participant_index> <technique> <halo> <shadow>
+
+example:
+
+    #run the phong shading with halo and depth encoded shadow
+    ./run.sh 1 phong 1 1
+

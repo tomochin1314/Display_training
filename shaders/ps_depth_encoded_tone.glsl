@@ -4,6 +4,7 @@ uniform sampler2D shadow_mask;
 varying vec4 tex_coord_shadow;
 
 varying vec3 normal, light0_dir, light1_dir, light2_dir, light3_dir, eye_vec;
+varying float keyfiber;
 
 // eye light
 const vec4 light0_diff = vec4(0.6, 0.6, 0.6, 1.0);
@@ -31,8 +32,6 @@ const vec4 cold = vec4(0.0f, 0.f, 1.0f, 1.0f);
 const vec4 warm = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 
 
-// if gl_Color equals to keycolor, we don't apply any effect
-const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);
 
 
 vec4 tone(vec4 cwarm, vec4 ccold)
@@ -52,6 +51,7 @@ vec4 tone(vec4 cwarm, vec4 ccold)
         + ( 1.f - (1.f + full_intensity) / 2.0f ) * cwarm;
 
 
+    /*
     vec3 E = normalize( eye_vec );
     vec3 R = reflect(-l0, n);
 
@@ -95,7 +95,7 @@ vec4 tone(vec4 cwarm, vec4 ccold)
         color += light3_specular * gl_FrontMaterial.specular
             * specular;
     }
-
+*/
     return color;
 }
 
@@ -124,8 +124,8 @@ void main()
     if(mask > 0.f)
         shadow_factor = mask;
 
-    if(gl_Color == keycolor)
-        gl_FragColor = shadow_factor * gl_Color * max(0.f, dot( normalize(light0_dir), normalize(normal) ) );
+    if(keyfiber > 0.f)
+        gl_FragColor = vec4(shadow_factor * gl_Color.xyz * max(0.f, dot( normalize(light0_dir), normalize(normal) ) ), 1.f);
     else
         gl_FragColor = vec4(shadow_factor * tone(cwarm, ccold).xyz, 1.f) * gl_Color;
 

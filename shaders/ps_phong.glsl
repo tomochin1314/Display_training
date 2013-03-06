@@ -1,6 +1,7 @@
 
 
 varying vec3 normal, light0_dir, light1_dir, light2_dir, light3_dir, eye_vec;
+varying float keyfiber;
 // eye light
 const vec4 light0_diff = vec4(0.6f, 0.6f, 0.6f, 1.0);
 const vec4 light0_specular = vec4(1.f, 1.f, 1.f, 1.f);
@@ -23,7 +24,7 @@ const vec4 light3_ambient = vec4(0.f, 0.f, 0.f, 1.f);
 
 
 // if gl_Color equals to keycolor, we don't apply any effect
-const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);
+/*const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);*/
 
 
 vec4 phong(vec3 n)
@@ -99,5 +100,5 @@ vec4 phong(vec3 n)
 
 void main() 
 {
-    gl_FragColor = phong(normal);
+    gl_FragColor = vec4(phong(normal).xyz, gl_Color.a);
 }

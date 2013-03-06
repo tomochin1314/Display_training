@@ -1,12 +1,11 @@
 // ----------------------------------------------------------------------------
-// tone.h: tone shading class, this is a friend class of situbeRender
+// effect.h: the base class of rendering technique 
 //
-// Creation : Feb. 19th 2013
+// Creation : Mar. 4th 2013
 //
 // Author: 2013-2014 Liming Xu 
 //
 // ----------------------------------------------------------------------------
-
 
 #pragma once
 #include "shader.h"
@@ -17,20 +16,11 @@
 #include "Light.h"
 #include "error.h"
 
-#define SHADOW_MAP_RATIO 2 // shadow map size = SHADOW_MAP_RATIO * WINDOW_WIDTH, SHADOW_MAP_RATIO * WINDOW_HEIGHT
-#define RELOC_NUM 4   // at most 8, number of relocation depth texture
-#define RELOC_STEP 0.3
-#define RELOC_INIT 0.5  // relocation scale, smallest value
-#define TEXCOORD_V_STEP 0.5f  // used in situbeRender.cpp, generating the texcoord
-
-#define MAX_SHADOW_LEN 2.0f
-#define MIN_SHADOW_LEN 0.5f
-
 
 class CSitubeRender;
 
 
-class tone_t
+class effect_t
 {
     protected:
         CSitubeRender *tr;
@@ -46,11 +36,17 @@ class tone_t
         GLfloat dir[3];
         bool use_color_tex;
 
+        int shadow_map_ratio; // shadow map size = SHADOW_MAP_RATIO * WINDOW_WIDTH, SHADOW_MAP_RATIO * WINDOW_HEIGHT
+        int reloc_num;  // at most 8, number of relocation depth texture
+        float reloc_step; 
+        float reloc_init; // relocation scale, smallest value
+        float texcoord_v_step;  // used in situbeRender.cpp, generating the texcoord
+        float max_shadow_len;  // for the depth encoded shadow
+        float min_shadow_len; 
+
 
         // Hold id of the framebuffer for light POV rendering
         GLuint fbo_id;
-        GLuint rbo_id;
-
         GLuint depth_map_width;  // note the size of texture cannot be larger than window size in the non-fbo mode
         GLuint depth_map_height;
 
@@ -73,25 +69,25 @@ class tone_t
         GLuint reloc_scale_uniform0, reloc_scale_uniform1;
 
         // for shader 3---------------------------------------------------
-        shader_t * dbs_tone_shader;  // for depth encoded shadow tone
-        shader_t * tone_shader;   // for pure tone
-        shader_t * p_tone_shader;  // just a pointer, decide which tone do we use
+        shader_t * dbs_phong_shader;  // for depth encoded shadow phong
+        shader_t * phong_shader;   // for pure phong
+        shader_t * p_phong_shader;  // just a pointer, decide which phong do we use
         GLuint shadow_mask_tex_uniform; // the input
 
+
         shader_t *halo_shader;
+        shader_t *fxaa_shader;
   
     public:
-        tone_t(CSitubeRender *_tr): halo(0), tr(_tr), depth_based_shadow(0){}
-        tone_t(CSitubeRender *_tr, bool _halo, bool _shadow) : halo(_halo), tr(_tr),
+        effect_t(CSitubeRender *_tr): halo(0), tr(_tr), depth_based_shadow(0){}
+        effect_t(CSitubeRender *_tr, bool _halo, bool _shadow) : halo(_halo), tr(_tr),
                                                                    depth_based_shadow(_shadow){}
-        ~tone_t()
+        ~effect_t()
         {
             if(depth_shader)
                 delete depth_shader;
             if(shadow_mask_shader)
                 delete shadow_mask_shader;
-            if(tone_shader)
-                delete tone_shader;
         }
 
         // the length of shadow is related with the distance between two tubes
@@ -114,18 +110,19 @@ class tone_t
         //
         //  the third pass
         //
-        void render_tone();
+        virtual void render_scene();
 
         void render_halo();
+        void fxaa();
         // DEBUG only. this piece of code draw the depth buffer onscreen
         void render_tex(GLuint tex_id);
         void render() ;
 
 
-        void init_tone();
-        void init_shader();
-        void init_light();
-        void init_material();
+        void init_phong();
+        virtual void init_shader();
+        virtual void init_light();
+        virtual void init_material();
 
 
         void set_halo(bool b) { halo = b; }

@@ -155,7 +155,7 @@
 #include "cppmoth.h"
 #include "GLgadget.h"
 #include <X11/Xlib.h>
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 
 using std::string;
 using std::vector;
@@ -189,7 +189,7 @@ public:
 	void setGlutInfo(const char* wTitle="GL program moth",
 						  int x = -1, int y = -1,
 						  int width = -1, int height = -1,
-						  int dispMode = GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+						  int dispMode = GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE);
 
 	/*
 	 * @ switch on or off stereoscopic display and stereo parameters if it is to be on

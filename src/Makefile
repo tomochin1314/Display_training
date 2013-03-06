@@ -19,7 +19,8 @@ CC=g++
 LIBSRCS= mitubeRenderView.cpp mitubeRenderWindow.cpp situbeRender.cpp \
 		GLoader.cpp cppmoth.cpp GLcppmoth.cpp \
 		iselbox.cpp  GLiboxmoth.cpp  GLgadget.cpp \
-		bitmap.cpp shader.cpp phong.cpp Light.cpp error.cpp
+		bitmap.cpp shader.cpp phong.cpp tone.cpp hatching.cpp \
+		Light.cpp error.cpp
 
 ifneq ($(DEBUG), 0)
 	FLAGS=-Wno-deprecated -DDEBUG -g 
