@@ -168,6 +168,8 @@ void phong_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
        
+    // this is mandatory, or the shadow at the ending of tube will be wrong
+    glDisable(GL_CULL_FACE);
     depth_shader->on();
 
     depth_shader->set_uniform1f("scale", scale);
@@ -219,6 +221,8 @@ void phong_t::render_shadow_mask_tex()
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glEnable(GL_DEPTH_TEST);
 
+    // this is mandatory, or the shadow at the ending of tube will be wrong
+    glDisable(GL_CULL_FACE);
     shadow_mask_shader->on();
 
     shadow_mask_shader->set_uniform3f("camera_pos", eye[0], eye[1], eye[2]);

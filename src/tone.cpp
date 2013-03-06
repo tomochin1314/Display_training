@@ -170,6 +170,9 @@ void tone_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     // I don't know why
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+    // this is mandatory, or the shadow at the ending of tube will be wrong
+    glDisable(GL_CULL_FACE);
        
     depth_shader->on();
 
@@ -221,6 +224,9 @@ void tone_t::render_shadow_mask_tex()
     // TODO:figure out?
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glEnable(GL_DEPTH_TEST);
+
+    // this is mandatory, or the shadow at the ending of tube will be wrong
+    glDisable(GL_CULL_FACE);
 
     shadow_mask_shader->on();
 

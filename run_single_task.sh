@@ -7,7 +7,7 @@
 BASEDIR=`pwd`
 
 BINDIR=${BASEDIR}/bin
-TASKDIRS="pretask task1 task2 task3 task4 task5 task6"
+TASKDIRS=""
 #TASKDIRS="task2"
 EXECUTABLES="singleitr multiviewitr multiwindowitr"
 
@@ -1223,16 +1223,17 @@ if [ $? -ne 0 ];then
     exit 1
 fi
 
-if [ $# -lt 1 ];then
-    echo "Usage: $0 <participant index> [resolution]"
+if [ $# -lt 2 ];then
+    echo "Usage: $0 <participant index> <task name> [resolution]"
     exit 1
 fi
 
 pi=$1
+TASKDIRS=$2
 
 fixres=2
-if [ $# -ge 2 ];then
-    fixres=$2
+if [ $# -ge 3 ];then
+    fixres=$3
 fi
 
 LOG="${LOG}_p${pi}_mono"
