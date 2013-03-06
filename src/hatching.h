@@ -29,7 +29,7 @@ class CSitubeRender;
 #define RELOC_STEP 0.3
 #define RELOC_INIT 0.5  // relocation scale, smallest value
 
-#define TEXCOORD_V_STEP 0.06f  // used in situbeRender.cpp, generating the texcoord
+#define TEXCOORD_V_STEP 0.5f  // used in situbeRender.cpp, generating the texcoord
 #define MAX_SHADOW_LEN 2.0f
 #define MIN_SHADOW_LEN 0.5f
 

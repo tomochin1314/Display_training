@@ -220,6 +220,7 @@ protected:
     int m_nShadow;
     string m_strTech;
 
+
 public:
 	CSitubeRender(int argc, char **argv);
 	virtual ~CSitubeRender();
@@ -278,7 +279,7 @@ public:
 	int mainstay();
     void draw_tubes();
     void draw_tube_caps();
-	void do_draw();
+	void draw();
 	void onIdle(void);
 
 	// tell the number of sibling processes in order to realize an imperative
@@ -364,8 +365,8 @@ private:
 	vector< vector<GLfloat> >		m_alltubevertices;
 	vector< vector<GLfloat>	>		m_alltubenormals;
 	vector< vector<GLfloat>	>		m_alltubecolors;
-	vector< vector<GLfloat>	>		m_encodedcolors;
     vector< vector<GLfloat> >       m_alltubetexcoords;
+	vector< vector<GLfloat>	>		m_encodedcolors;
 	vector< vector<GLuint> >		m_alltubefaceIdxs;
 
     vector< vector<GLfloat> >		m_alltubecapvertices;
@@ -374,7 +375,6 @@ private:
 	vector< vector<GLfloat>	>		m_capencodedcolors;
     vector< vector<GLfloat> >       m_alltubecaptexcoords;
 	vector< vector<GLuint> >		m_alltubecapfaceIdxs;
-
 
 
 	/* get the maximal X,Y and Z coordinate among all vertices */
@@ -431,15 +431,12 @@ private:
 	// set of the loaded fiber indices
 	std::set<unsigned long> m_expectedFiberIndices;
 
-	std::vector< std::string > m_strfnTumorBoxes;
-	// the opposite corner of the tumor bounding box
-	std::vector< _point_t<GLfloat> > m_tumorBoxMin, m_tumorBoxMax;
-
 	// record what the user typed as the answer to the task 
 	std::string m_strAnswer;
 
 	// the expected answer, i.e. the key
 	int m_nKey;
+	double m_fKeyDiff;
 
 	/* if the skeleton projection has been initializd */
 	bool m_bSkeletonPrjInitialized;
@@ -495,18 +492,8 @@ private:
 	// predefined fiber bundle are prepared therein.
 	int _loadFiberIdx();
 
-	// load the expectedly selected fibers by indices and compute the rate of
-	// correct marking thus give result as the evaluation of user's task
-	// performance
-	bool _checkAnswer();
-
-	// draw markers at start points of a predefined fiber bundle
-	void _drawMarkers();
-
 	// simply read user's keyboard type as the answer
 	bool _getAnswer(unsigned char key);
-	// load bounding box information for the tumor potato
-	int _loadTumorBoxpos();
 };
 
 #endif // _SITUBERENDER_H_

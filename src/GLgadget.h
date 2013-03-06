@@ -111,7 +111,7 @@
 #include <vector>
 #include <fstream>
 
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include "iselbox.h"
 #include "bitmap.h"
 #include "glrand.h"

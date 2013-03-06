@@ -39,7 +39,7 @@
 #include <sstream>
 #include <string>
 
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include <GL/glx.h>
 
 #define ARRAY_SIZE(a)		( NULL==a?0 : (int)(sizeof a / sizeof a[0]) )

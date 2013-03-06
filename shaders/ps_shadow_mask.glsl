@@ -3,7 +3,6 @@
 uniform sampler2D depth_map0;
 uniform sampler2D depth_map1;
 uniform sampler2D depth_map2;
-uniform sampler2D depth_map3;
 uniform sampler2D depth_map3; // the largest relocation scale
 uniform float depth_far;
 uniform float depth_near;
@@ -35,7 +34,7 @@ void main()
     float ref_dist = abs(camera_depth - dist3);
     float diff = ref_dist;
     float scale = reloc_scale0.w;
-    float shadow_tone;  // smaller distance, lighter shadow
+    float shadow_tone = 0.f;  // smaller distance, lighter shadow
 
     // compare the distance between two tubes with each limit
     if(ref_dist <= thre.x)
@@ -54,7 +53,7 @@ void main()
     {
         diff = abs(camera_depth - dist2);
         scale = reloc_scale0.z;
-        shadow_tone = 0.65;
+        shadow_tone = 0.55;
     }
     else if(ref_dist <= thre.w)
     {
@@ -67,7 +66,7 @@ void main()
         diff = 0.f;
     }
 
-    // 4.0 is a magic number to avoid false shadow on the object its self
+    // 4.0 is a magic number to avoid false shadow on the object itself
     float delta = (4.*scale) / depth_diff;
 
     float shadow = 0.0;
@@ -82,7 +81,7 @@ void main()
      *    gl_FragColor = vec4(0.f, 1.f, 0.f, 1.f);
      *else gl_FragColor = vec4(shadow_tone, 0.f, 0.f, 1.f);
      */
-    if(shadow * diff == 0.f)
+    if(shadow == 0.f)
         gl_FragDepth = 0.;
-    else gl_FragColor = shadow_tone;
+    else gl_FragDepth  = shadow_tone;
 }

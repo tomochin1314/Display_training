@@ -12,7 +12,6 @@
 using std::ostream_iterator;
 using std::copy;
 using std::ofstream;
-using std::ifstream;
 using std::ends;
 
 #ifdef __MAC
@@ -40,31 +39,24 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 #ifdef DWI_EMBEDDING
 	m_strdwidir(""),
 #endif
-	m_strfnhelp(""),
 	m_strfntask(""),
-	m_strfnskeleton(""),
 	m_lod(8),
 	m_nselbox(1),
 	m_bVradius(true),
-	m_bRemovalbased(false),
-	m_bOR(false),
 	m_fAdd(0.5),
 	m_fRadius(0.25),
 	m_fbdRadius(20.0),
 	m_fMaxSegLen(-LOCAL_MAXDOUBLE),
 	m_fMinSegLen(LOCAL_MAXDOUBLE),
-	m_colorschemeIdx(CLSCHM_CUSTOM),
+	m_colorschemeIdx(CLSCHM_ANATOMY_SYMMETRIC),
 #ifdef DWI_EMBEDDING
 	m_bShowDWIImage(true),
 #endif
-	m_bShowHelp(true),
 	m_pIntInfo(NULL),
 	m_bSync(false),
 	m_nSiblings(0),
 	m_bSuspended(false),
-	m_strAnswer(""),
-	m_nKey(1),
-	m_bSkeletonPrjInitialized(false),
+	m_bShowContext(true),
     m_nHalo(0),
     m_nShadow(0),
     m_strTech("phong")
@@ -76,7 +68,9 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 
 	addOption('f', true, "input-file-name", "the name of source file"
 			" containing geometry and in the format of tgdata");
+#ifdef DWI_EMBEDDING
 	addOption('d', true, "dwi-b0-dir", "directory holding DWI b0 DICOM images");
+#endif
 	addOption('g', true, "output-file-name", "the name of target file"
 			" to store the geometry of streamtubes produced");
 	addOption('r', true, "tube-radius", "fixed radius of the tubes"
@@ -85,15 +79,8 @@ CSitubeRender::CSitubeRender(int argc, char **argv) : CGLIBoxApp(argc, argv),
 			" generation, it is expected to impact the smoothness of tubes");
 	addOption('b', true, "box-num", "number of selection box"
 			" which is 1 by default");
-	addOption('p', true, "prompt-text", "a file of interaction help prompt");
 	addOption('t', true, "task-list", "a file containing a list of "
 			"visualization tasks");
-	addOption('s', true, "skeletonic-geometry", "a file containing geometry"
-		    " of bundle skeletons also in the format of tgdata");
-	addOption('i', true, "fiber-index", "a file of indices of fibers that"
-		   " are expected to be marked by the user as correct answer");
-	addOption('j', true, "boxpos", "files of box position");
-	addOption('k', true, "task key", "number indicating the task key, the order of correct box");
 
 	addOption('a', true, "halo effect", "boolean 0/1 indicating if to add halo to the model");
 	addOption('w', true, "depth encoded shadow", "boolean 0/1 indicating if to add depth encoded shadow to the model");
@@ -179,9 +166,9 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 	vector<GLfloat>		tube_vertices;
 	vector<GLfloat>		tube_normals;
 	vector<GLfloat>		tube_colors;
-    vector<GLfloat>     tube_texcoords;
 	vector<GLuint>		tube_faceIdxs;
 	vector<GLfloat>		tube_encodedcolors;
+    vector<GLfloat>     tube_texcoords;
 
     vector<GLfloat>		cap_vertices;
 	vector<GLfloat>		cap_normals;
@@ -197,7 +184,7 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 	 */
 	tube_vertices.resize ( szPts * m_lod * 3 );
 	tube_normals.resize( szPts * m_lod * 3 );
-    tube_texcoords.resize( szPts * m_lod * 2);
+	tube_texcoords.resize( szPts * m_lod * 2 );
 
 	// szPts points contain szPts-1 line segments
 	//tube_colors.resize( (szPts-1) * 3 );
@@ -261,21 +248,10 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 		else {
 			dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
 		}
-		if ( 0 != m_colormapper.getColor( dx, dy, dz, r, g ,b) ) {
-			// take the color for the start point as the color for the associated tube
-			// fragment
 
-			if ( szPts-1 > idx1 ) {
-				tube_encodedcolors[ idx1*3 + 0 ] = line [ idx1*6 + 0 ];
-				tube_encodedcolors[ idx1*3 + 1 ] = line [ idx1*6 + 1 ];
-				tube_encodedcolors[ idx1*3 + 2 ] = line [ idx1*6 + 2 ];
-			}
-		}
-		/*
-		   else {
-		   cout << "color of fiber : " << r << "," << g << "," << b << "\n";
-		   }
-		   */
+		// take the color for the start point as the color for the associated tube
+		// fragment
+		m_colormapper.getColor( dx, dy, dz, r, g ,b);
 
 		/* firstly project a third vector in between each pair of adjacent line
 		 * fragments
@@ -346,11 +322,11 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
 			tube_colors [ idx1*3 * m_lod + 3*l + 2 ] = line [ idx1*6 + 2 ];
 			tube_encodedcolors [ idx1*3 * m_lod + 3*l + 0 ] = r;
 			tube_encodedcolors [ idx1*3 * m_lod + 3*l + 1 ] = g;
-            tube_encodedcolors [ idx1*3 * m_lod + 3*l + 2 ] = b;
+			tube_encodedcolors [ idx1*3 * m_lod + 3*l + 2 ] = b;
             tube_texcoords[idx1*2 * m_lod + 2*l + 0] = uf;
             tube_texcoords[idx1*2 * m_lod + 2*l + 1] = vf;
 
-			// find the maximal and minimal coordinats among the new
+            // find the maximal and minimal coordinats among the new
 			// vertices of the streamtubes
 			for (int j=0; j<3; ++j) {
 				if ( tube_vertices[ idx1*3 * m_lod + 3*l + j ] > m_maxCoord[j] ) {
@@ -375,7 +351,8 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
                 vf = 0.f;
 	}
 
-        // add vertices and attributes for cap
+
+    // add vertices and attributes for cap
     for(int i = 0; i < m_lod * 3; ++i)
     {
         cap_vertices.push_back(tube_vertices[i]);
@@ -457,70 +434,70 @@ void CSitubeRender::buildTubefromLine(unsigned long lineIdx)
  */
 int CSitubeRender::serializeTubes(const string& fnobj) 
 {
-    ofstream ofs(fnobj.c_str());
-    if ( ! ofs.is_open() ) {
-        cerr << "failed to create file : " << fnobj << 
-            " for serializing." << endl;
-        return -1;
-    }
+	ofstream ofs(fnobj.c_str());
+	if ( ! ofs.is_open() ) {
+		cerr << "failed to create file : " << fnobj << 
+			" for serializing." << endl;
+		return -1;
+	}
 
-    m_cout << "Start serializing streamtube geometry .... ";
-    fflush(stdout);
+	m_cout << "Start serializing streamtube geometry .... ";
+	fflush(stdout);
 
-    // a brief even trivial header
-    ofs << "# --------------------------- " << endl;
-    ofs << "# start of the obj file " << endl;
-    ofs << fixed << setprecision(6);
+	// a brief even trivial header
+	ofs << "# --------------------------- " << endl;
+	ofs << "# start of the obj file " << endl;
+	ofs << fixed << setprecision(6);
 
-    unsigned long szTubes = static_cast<unsigned long> 
-        ( m_alltubevertices.size() );
-    unsigned long szVertex, szNormal, szFace;
-    // write each tube's geometry, one after another, throughout the tube
-    // store
-    for (unsigned long tIdx = 0; tIdx < szTubes; tIdx++) {
-        ofs << "# Tube no." << tIdx << endl;
+	unsigned long szTubes = static_cast<unsigned long> 
+		( m_alltubevertices.size() );
+	unsigned long szVertex, szNormal, szFace;
+	// write each tube's geometry, one after another, throughout the tube
+	// store
+	for (unsigned long tIdx = 0; tIdx < szTubes; tIdx++) {
+		ofs << "# Tube no." << tIdx << endl;
 
-        // vertices of current tube
-        szVertex = static_cast<unsigned long> 
-            ( m_alltubevertices[ tIdx ].size() ) / 3;
-        for (unsigned long vIdx = 0; vIdx < szVertex; vIdx ++) {
-            ofs << "v " << m_alltubevertices[ tIdx ][ vIdx*3 + 0 ] << " "
-                << m_alltubevertices[ tIdx ][ vIdx*3 + 1 ] << " "
-                << m_alltubevertices[ tIdx ][ vIdx*3 + 2 ] << endl;
-        }
+		// vertices of current tube
+		szVertex = static_cast<unsigned long> 
+			( m_alltubevertices[ tIdx ].size() ) / 3;
+		for (unsigned long vIdx = 0; vIdx < szVertex; vIdx ++) {
+			ofs << "v " << m_alltubevertices[ tIdx ][ vIdx*3 + 0 ] << " "
+				<< m_alltubevertices[ tIdx ][ vIdx*3 + 1 ] << " "
+				<< m_alltubevertices[ tIdx ][ vIdx*3 + 2 ] << endl;
+		}
 
-        // a blank line separating between each section of vertices, normals
-        // and face indices
-        ofs << endl;
+		// a blank line separating between each section of vertices, normals
+		// and face indices
+		ofs << endl;
 
-        // normals for faces of current tube
-        szNormal = static_cast<unsigned long> 
-            (m_alltubenormals[ tIdx ].size() ) / 3;
-        for (unsigned long nIdx = 0; nIdx < szNormal; nIdx ++) {
-            ofs << "vn " << m_alltubenormals[ tIdx ][ nIdx*3 + 0 ] << " "
-                << m_alltubenormals[ tIdx ][ nIdx*3 + 1 ] << " "
-                << m_alltubenormals[ tIdx ][ nIdx*3 + 2 ] << endl;
-        }
+		// normals for faces of current tube
+		szNormal = static_cast<unsigned long> 
+			(m_alltubenormals[ tIdx ].size() ) / 3;
+		for (unsigned long nIdx = 0; nIdx < szNormal; nIdx ++) {
+			ofs << "vn " << m_alltubenormals[ tIdx ][ nIdx*3 + 0 ] << " "
+				<< m_alltubenormals[ tIdx ][ nIdx*3 + 1 ] << " "
+				<< m_alltubenormals[ tIdx ][ nIdx*3 + 2 ] << endl;
+		}
 
-        // a blank line separating between each section of vertices, normals
-        // and face indices
-        ofs << endl;
+		// a blank line separating between each section of vertices, normals
+		// and face indices
+		ofs << endl;
 
-        // face indices, along with normal indices, for current tube
-        szFace = static_cast<unsigned long> 
-            (m_alltubefaceIdxs[ tIdx ].size() ) / 4;
-        for (unsigned long fIdx = 0; fIdx < szFace; fIdx ++) {
-            ofs << "f ";
-            for (int pIdx = 0; pIdx < 4; pIdx++) {
-                // faces share normals with the first vertex, without text
-                // coordinate information since it is not used here
-                ofs << m_alltubefaceIdxs[ tIdx ][ fIdx*4 + pIdx ] << "//"
-                    << m_alltubefaceIdxs[ tIdx ][ fIdx*4 + 0 ];
-                if ( pIdx < 3 ) {
-                    ofs << " ";
-                }
-            }
-            ofs << endl;
+		// face indices, along with normal indices, for current tube
+		szFace = static_cast<unsigned long> 
+			(m_alltubefaceIdxs[ tIdx ].size() ) / 4;
+		for (unsigned long fIdx = 0; fIdx < szFace; fIdx ++) {
+			ofs << "f ";
+			for (int pIdx = 0; pIdx < 4; pIdx++) {
+				// faces share normals with the first vertex, without text
+				// coordinate information since it is not used here
+				ofs << m_alltubefaceIdxs[ tIdx ][ fIdx*4 + pIdx ] << "//"
+					<< m_alltubefaceIdxs[ tIdx ][ fIdx*4 + 0 ];
+				if ( pIdx < 3 ) {
+					ofs << " ";
+				}
+			}
+			ofs << endl;
 		}
 
 		// two blank lines separating between each block of geometry for a
@@ -554,10 +531,6 @@ int CSitubeRender::loadGeometry()
 {
 	if ( 0 != m_loader.load(m_strfnsrc) ) {
 		m_cout << "Loading geometry failed - GLApp aborted abnormally.\n";
-		return -1;
-	}
-
-	if ( -1 == projectSkeleton(-1,-1) ) {
 		return -1;
 	}
 
@@ -649,9 +622,9 @@ void CSitubeRender::glInit(void)
 		glutIdleFunc(_onIdle);
 		m_bSync = true;
 	}
-
+    
     phong = new phong_t(this);
-    phong->set_halo(m_nHalo);  // these two settings must before init
+    phong->set_halo(m_nHalo);
     phong->set_depth_based_shadow(m_nShadow);
     phong->init_phong();
 
@@ -664,7 +637,6 @@ void CSitubeRender::glInit(void)
     hatching->set_halo(m_nHalo);
     hatching->set_depth_based_shadow(m_nShadow);
     hatching->init_hatching();
-
 }
 
 int CSitubeRender::handleOptions(int optv) 
@@ -719,44 +691,9 @@ int CSitubeRender::handleOptions(int optv)
 			}
 			break;
 #endif
-		case 'p':
-			{
-				m_strfnhelp = optarg;
-				return 0;
-			}
-			break;
 		case 't':
 			{
 				m_strfntask = optarg;
-				return 0;
-			}
-			break;
-		case 's':
-			{
-				m_strfnskeleton = optarg;
-				return 0;
-			}
-			break;
-		case 'i':
-			{
-				m_strfnFiberIdx = optarg;
-				return 0;
-			}
-			break;
-		case 'j':
-			{
-				m_strfnTumorBoxes.push_back(optarg);
-				return 0;
-			}
-			break;
-		case 'k':
-			{
-				m_nKey = atoi(optarg);
-				if ( m_nKey <= 0 ) {
-					cerr << "value for task key is illict, "
-						"should be in [1,3].\n";
-					return -1;
-				}
 				return 0;
 			}
 			break;
@@ -786,14 +723,9 @@ int CSitubeRender::handleOptions(int optv)
 
 void CSitubeRender::keyResponse(unsigned char key, int x, int y) 
 {
-    // comment by XLM, all keyboard working
-    /*
-	 *if ( [>32 != key && <]27 != key ) {
-	 *    _BLOCK_ALL_INPUT;
-	 *    //_getAnswer(key);
-	 *    return;
-	 *}
-     */
+	if ( 32 != key ) {
+		_BLOCK_ALL_INPUT;
+	}
 	if ( m_bSync && m_nSiblings >= 1) {
 		m_pIntInfo->bUpdated = true;
 		m_pIntInfo->key = key;
@@ -817,20 +749,24 @@ void CSitubeRender::specialResponse(int key, int x, int y)
 	 */
 	switch (key) {
 		case GLUT_KEY_F11:
-		case GLUT_KEY_F10:
 		case GLUT_KEY_F9:
 		case GLUT_KEY_F8:
 		case GLUT_KEY_F7:
 		case GLUT_KEY_F6:
-		case GLUT_KEY_F4:
-		case GLUT_KEY_F3:
-		case GLUT_KEY_F2:
-		case GLUT_KEY_F1:
-		case GLUT_KEY_HOME:
 		case GLUT_KEY_UP:
 		case GLUT_KEY_DOWN:
 		case GLUT_KEY_LEFT:
 		case GLUT_KEY_RIGHT:
+			return;
+		case GLUT_KEY_F5:
+			{
+				if ( m_nSiblings >= 1 ) {
+					m_bSync = !m_bSync;
+					m_cout << "[PID: " << getpid() << 
+						(m_bSync?" ] enter in ":" ] leave ") 
+						<< " synchronization.\n";
+				}
+			}
 			return;
 		default:
 			break;
@@ -855,9 +791,6 @@ void CSitubeRender::specialResponse(int key, int x, int y)
 void CSitubeRender::mouseResponse(int button, int state, int x, int y)
 {
 	_BLOCK_ALL_INPUT;
-    // comment by XLM, let right button work
-	//if ( button != GLUT_LEFT_BUTTON ) return;
-
 	if ( m_bSync && m_nSiblings >= 1) {
 		m_pIntInfo->bUpdated = true;
 		m_pIntInfo->button = button;
@@ -872,7 +805,6 @@ void CSitubeRender::mouseResponse(int button, int state, int x, int y)
 		return;
 	}
 	CGLIBoxApp::mouseResponse(button, state, x, y);
-	_getAnswer(0);
 }
 
 void CSitubeRender::mouseMotionResponse(int x, int y)
@@ -889,16 +821,12 @@ void CSitubeRender::mouseMotionResponse(int x, int y)
 		 */
 		return;
 	}
-	if ( m_pressedbtn == GLUT_LEFT  && -1 == m_curselboxidx ) {
-		projectSkeleton(x,y, GLUT_ACTIVE_CTRL == glutGetModifiers());
-	}
 	CGLIBoxApp::mouseMotionResponse(x, y);
 }
 
 void CSitubeRender::mousePassiveMotionResponse(int x, int y)
 {
 	_BLOCK_ALL_INPUT;
-	//return;
 	if ( m_bSync && m_nSiblings >= 1) {
 		m_pIntInfo->bUpdated = true;
 		m_pIntInfo->x = x;
@@ -916,7 +844,6 @@ void CSitubeRender::mousePassiveMotionResponse(int x, int y)
 void CSitubeRender::mouseWheelRollResponse(int wheel, int direction, int x, int y)
 {
 	_BLOCK_ALL_INPUT;
-	return;
 	if ( m_bSync && m_nSiblings >= 1) {
 		m_pIntInfo->bUpdated = true;
 		m_pIntInfo->wheel = wheel;
@@ -946,40 +873,30 @@ int CSitubeRender::mainstay()
 		serializeTubes( m_strfnobj );
 	}	
 
-	/*
 	setMinMax(m_minCoord[0], m_minCoord[1], m_minCoord[2],
 			m_maxCoord[0], m_maxCoord[1], m_maxCoord[2]);
-	*/
-	setMinMax(73.892693, 51.458450, 6.270835,
-			178.686295, 196.907684, 134.905716);
 
-	m_nselbox = m_strfnTumorBoxes.size();
+	// add a set of buttons for in-situ box interaction
+	//addButton("+", "icons/1.bmp");
+	addButton("+", "bicons/1.bmp");
+	addButton("-", "bicons/2.bmp");
+	addButton("&", "bicons/3.bmp","|"); // AND or OR
+	addButton("a", "bicons/4.bmp","e"); // exclusive or active selection mode
+	addButton("s", "bicons/5.bmp","h"); // show / hide
+	addButton("c", "bicons/6.bmp","n"); // show context or no context
+
 	// add initial number of selection boxes
 	for (int i=0; i<m_nselbox; ++i) {
 		addBox();
 	}
 
-	// load stander key of the task3
-	if ( "" == m_strfnFiberIdx || 0 != _loadFiberIdx() ) {
-		cerr << "Failed to load task key : the fiber indices of "
-			"the bundle to be marked, see -h for usage.\n";
-		return -1;
-	}
-
-	if ( 0 == m_nselbox || 0 != _loadTumorBoxpos() ) {
-		cerr << "FATAL: failed to load tumor bounding box information.\n";
-		return -1;
-	}
-
 	// add a color map sphere
-	/*
 	m_pcmGadget->setVertexCoordRange(
-			( m_minCoord[0] + m_maxCoord[0] )/2.0,
-			( m_minCoord[1] + m_maxCoord[1] )/2.0,
-			( m_minCoord[2] + m_maxCoord[2] )/2.0);
+			( m_minCoord[0] + m_maxCoord[0] )/2.5,
+			( m_minCoord[1] + m_maxCoord[1] )/2.5,
+			( m_minCoord[2] + m_maxCoord[2] )/2.5);
 	addGadget( m_pcmGadget );
 	((CSphereColorMap*)m_pcmGadget)->setColorScheme( m_colorschemeIdx );
-	*/
 	//m_pcmGadget->switchTranslucent();
 
 	// add an anatomical coordinate system gadget
@@ -989,26 +906,9 @@ int CSitubeRender::mainstay()
 			( m_minCoord[2] + m_maxCoord[2] )/2);
 	addGadget( m_paxesGagdet );
 	((CAnatomyAxis*)m_paxesGagdet)->setColorScheme( m_colorschemeIdx );
-	m_paxesGagdet->setStereo(m_bStereo, 1.0, 40.0);
-
-	// add the help prompt text box if requested
-	if ( "" != m_strfnhelp && m_bShowHelp ) { //yes, requested
-		// we are not that serious to quit just owing to the failure in loading
-		// help text since it is just something optional
-		if ( 0 < m_helptext.loadFromFile( m_strfnhelp.c_str() ) ) {
-			m_helptext.setVertexCoordRange(
-				( m_minCoord[0] + m_maxCoord[0] )/2,
-				( m_minCoord[1] + m_maxCoord[1] )/2,
-				( m_minCoord[2] + m_maxCoord[2] )/2);
-			m_helptext.setColor(1.0, 1.0, 0.6);
-			m_helptext.setRasterPosOffset(35, 2);
-		}
-	}
 
 	// turn back on gadget feature 
 	m_bGadgetEnabled = true;
-	m_bIboxEnabled = false;
-	m_bIboxCulling = false;
 	
 	// associate with a task list if requested
 	if ( "" != m_strfntask ) { // yes, requested
@@ -1019,10 +919,9 @@ int CSitubeRender::mainstay()
 				( m_minCoord[1] + m_maxCoord[1] )/2,
 				( m_minCoord[2] + m_maxCoord[2] )/2);
 			m_taskbox.setColor(1.0, 1.0, 1.0);
-			//m_taskbox.turncover(true);
-			m_taskbox.turncover(false);
+			m_taskbox.turncover(true);
 			m_bIboxEnabled = false;
-			//m_bGadgetEnabled = false;
+			m_bGadgetEnabled = false;
 		}
 	}
 
@@ -1043,20 +942,13 @@ int CSitubeRender::mainstay()
 		}
 	}
 #endif
-	addOptBtn("Box 1");
-	addOptBtn("Box 2");
-	addOptBtn("Box 3");
-	addOptBtn("Next");
 
-	setPrjInfo(18.0f, 
-			//ABS(m_minCoord[2])/4.0,
-			6.27/4.0,
-			//(ABS(m_maxCoord[2]) + ABS(m_minCoord[2]))*8);
-			70.76*16.0);
+	setPrjInfo(45.0f, 
+			ABS(m_minCoord[2])/4.0,
+			(ABS(m_maxCoord[2]) + ABS(m_minCoord[2]))*8);
 
 	setViewInfo(0.0, 0.0,
-			//( m_minCoord[2] + m_maxCoord[2] )*3,
-			70.76*6.0,
+			( m_minCoord[2] + m_maxCoord[2] )*3,
 			0.0, 0.0, 0.0,
 			0, 1, 0);
 
@@ -1078,6 +970,45 @@ int CSitubeRender::mainstay()
 	}
 
 	return	CGLIBoxApp::mainstay();
+}
+
+void CSitubeRender::draw_streamlines()
+{
+	// show streamline model as context for selecting ROIs
+	if ( m_bShowContext ) {
+		glPushMatrix();
+		glTranslatef( - (m_loader.getMaxCoord(0) + m_loader.getMinCoord(0))/2,
+					  -	(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2,
+					  -	(m_loader.getMaxCoord(2) + m_loader.getMinCoord(2))/2 );
+		glPushAttrib(GL_ALL_ATTRIB_BITS);
+		glPushClientAttrib(GL_ALL_CLIENT_ATTRIB_BITS);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glColor4f(.6,.6,.6,0.6f);
+		glDisable(GL_LIGHTING);
+		glDisable(GL_COLOR_MATERIAL);
+		// always render the streamline geometry as the context for selection
+		unsigned long szTotal = m_loader.getSize();
+		for (unsigned long idx = 0; idx < szTotal; ++idx) {
+			vector<GLfloat> & curLine = m_loader.getElement( idx );
+
+			if ( m_bUseOrgColor ) {
+				glInterleavedArrays(GL_C3F_V3F, 0, &curLine[0]);
+			}
+			else {
+				glInterleavedArrays(GL_V3F, 6*sizeof(GLfloat), &curLine[3]);
+			}
+
+			// using vertices as normals
+			glNormalPointer( GL_FLOAT, 6*sizeof(GLfloat), &curLine[3]);
+
+			glDrawArrays(GL_LINE_STRIP, 0, curLine.size()/6);
+		}
+		glPopClientAttrib();
+		glPopAttrib();
+		glPopMatrix();
+	}
+
 }
 
 void CSitubeRender::draw_tube_caps()
@@ -1115,43 +1046,88 @@ void CSitubeRender::draw_tube_caps()
 
 void CSitubeRender::draw_tubes()
 {
-    /* load streamtube geometry and render
-    */
-    unsigned long szTotal = m_loader.getSize();
-    for (unsigned long idx = 0; idx < szTotal; ++idx) {
+	
+	/* load streamtube geometry and render
+	*/
+	unsigned long szTotal = m_loader.getSize();
+	for (unsigned long idx = 0; idx < szTotal; ++idx) {
+		if ( m_boxes.size() > 0 ) {
+			if ( m_bOR ) {
+			   if ( m_bRemovalbased == isTubeInSelbox(idx) ) {
+				   /*
+				    * flags of streamlines that will disappear is now set as GL_FALSE, 
+				    * for the purpose of region dumping(saving)
+				   */
+				   m_edgeflags[idx] = GL_FALSE;
+				   continue;
+			   }
+			}
+			else if ( m_bRemovalbased == isLineInBox<GLfloat>( 
+						&m_alltubevertices[idx][0], 
+						m_alltubevertices[idx].size(),
+						6, 3, 
+						-(GLfloat)( m_minCoord[0] + m_maxCoord[0] )/2,
+						-(GLfloat)( m_minCoord[1] + m_maxCoord[1] )/2,
+						-(GLfloat)( m_minCoord[2] + m_maxCoord[2] )/2) ) {
+				/*
+				 * flags of streamlines that will disappear is now set as GL_FALSE, 
+				 * for the purpose of region dumping(saving)
+				*/
+				m_edgeflags[idx] = GL_FALSE;
+				continue;
+			}
+		}
+		
+		/* otherwise, for visible streamtubes, the corresponding streamlines
+		 * should be set to GL_TRUE in their flags
+		 */
+		m_edgeflags[idx] = GL_TRUE;
 
-        glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
+		glVertexPointer(3, GL_FLOAT, 0, &m_alltubevertices[idx][0]);
         glTexCoordPointer(2, GL_FLOAT, 0, &m_alltubetexcoords[idx][0]); 
 
-        if ( m_bUseDirectionColor ) {
-            glColorPointer(3, GL_FLOAT, 0, &m_encodedcolors[idx][0]);
-        }
-        else if ( m_bUseOrgColor ) {
-            glColorPointer(3, GL_FLOAT, 0, &m_alltubecolors[idx][0]);
-        }
+		if ( m_bUseDirectionColor ) {
+			glColorPointer(3, GL_FLOAT, 0, &m_encodedcolors[idx][0]);
+		}
+		else if ( m_bUseOrgColor ) {
+			glColorPointer(3, GL_FLOAT, 0, &m_alltubecolors[idx][0]);
+		}
 
-        if ( m_bVnormal ) {
-            glNormalPointer(GL_FLOAT, 0 ,&m_alltubevertices[idx][0]);
-        }
-        else {
-            glNormalPointer(GL_FLOAT, 0 ,&m_alltubenormals[idx][0]);
-        }
+		if ( m_bVnormal ) {
+			glNormalPointer(GL_FLOAT, 0 ,&m_alltubevertices[idx][0]);
+		}
+		else {
+			glNormalPointer(GL_FLOAT, 0 ,&m_alltubenormals[idx][0]);
+		}
 
-        glDrawElements(GL_QUADS, m_alltubefaceIdxs[idx].size(), 
-                GL_UNSIGNED_INT, &m_alltubefaceIdxs[idx][0]);
+		glDrawElements(GL_QUADS, m_alltubefaceIdxs[idx].size(), 
+				GL_UNSIGNED_INT, &m_alltubefaceIdxs[idx][0]);
+	}
 
-    }
 }
 
 void CSitubeRender::do_draw() 
 {
-    CGLIBoxApp::do_draw();
+	CGLIBoxApp::do_draw();
+
 #ifdef DWI_EMBEDDING
-    // draw the DWI B0 image
-    if ( "" != m_strdwidir && m_bShowDWIImage ) {
-        m_dcmexplorer.display();
-    }
+	// draw the DWI B0 image
+	if ( "" != m_strdwidir && m_bShowDWIImage ) {
+		m_dcmexplorer.display();
+	}
 #endif
+
+	// draw task text box if necessary
+	if ( "" != m_strfntask ) {
+		m_taskbox.display();
+		if ( m_taskbox.iscovered() ) {
+			// when a task is waiting for trigger, no draw afterwards is needed
+			return;
+		}
+	}
+    
+
+    draw_streamlines();
 
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
@@ -1167,99 +1143,40 @@ void CSitubeRender::do_draw()
         tone->render();
     else if(m_strTech == "hatching")
         hatching->render();
-
-    glPopMatrix();
-
+	glPopMatrix();
 
 
-    glPushMatrix();
-    // move the local coordinate system so that the default origin is still
-    // located at the center of the object coordinate system
-    glTranslatef( -( m_minCoord[0] + m_maxCoord[0] )/2,
-            -( m_minCoord[1] + m_maxCoord[1] )/2,
-            -( m_minCoord[2] + m_maxCoord[2] )/2);
-
-    // draw help text box if necessary
-    if ( "" != m_strfnhelp && m_bShowHelp ) {
-        m_helptext.display();
-    }
-
-    // draw task text box if necessary
-    if ( "" != m_strfntask ) {
-        m_taskbox.display();
-        /*
-           if ( m_taskbox.iscovered() ) {
-        // when a task is waiting for trigger, no draw afterwards is needed
-        return;
-        }
-        */
-    }
-
-    _drawMarkers();
-
-    glPopMatrix();
-
-    drawBoxes();
-
-    // show fiber bundle skeleton if requested and available
-    if ( "" != m_strfnskeleton ) {
-        drawCanvas();
-        if ( ! m_bSkeletonPrjInitialized ) {
-            projectSkeleton(0,0);
-            m_bSkeletonPrjInitialized = true;
-        }
-        drawSkeleton();
-    }
 
     /*
-     * since mostly an interaction input should bring about a need of redrawing,
-     * here at this point it should be the best place to say that one more
-     * interaction synchronization for current process has been finished
-     */
-    if ( m_bSync && m_nSiblings >= 1 && m_pIntInfo->bUpdated ) {
-        m_pIntInfo->nFinished ++;
+	 * since mostly an interaction input should bring about a need of redrawing,
+	 * here at this point it should be the best place to say that one more
+	 * interaction synchronization for current process has been finished
+	 */
+	if ( m_bSync && m_nSiblings >= 1 && m_pIntInfo->bUpdated ) {
+		m_pIntInfo->nFinished ++;
 
-        if ( m_pIntInfo->nFinished >= m_nSiblings ) {
-            // ready for the next update of the interaction info sharing block
-            m_pIntInfo->bUpdated = false;
-            m_pIntInfo->nFinished = 0;
-            m_cout << "OK, current synchronization finished.\n";
-        }
-    }
+		if ( m_pIntInfo->nFinished >= m_nSiblings ) {
+			// ready for the next update of the interaction info sharing block
+			m_pIntInfo->bUpdated = false;
+			m_pIntInfo->nFinished = 0;
+			m_cout << "OK, current synchronization finished.\n";
+		}
+	}
 }
 
 void CSitubeRender::onIdle(void)
 {
-    if ( m_nSiblings < 1 ) {
-        /* this customized idle function will be used for self-rotating
-         * exhibition
-         */
-        char keys[] = {'j', 'h', 'i', 'l', 'k', ','};
-        static int angle = 0, idx = 0;
-        usleep(10000);
-        keyResponse(keys[idx], 0, 0);
-        angle ++;
-        if ( angle >= 360 ) {
-            angle = 0;
-            idx ++;
-            if ( idx >= ARRAY_SIZE(keys) ) {
-                idx = 0;
-            }
-        }
-        //CGLIBoxApp::onIdle();
-        return;
-    }
-    // monitoring the shared memory block for interaction synchronization
-    if (!m_pIntInfo->bUpdated || !m_bSync) {
-        return;
-    }
+	// monitoring the shared memory block for interaction synchronization
+	if (!m_pIntInfo->bUpdated || !m_bSync) {
+		return;
+	}
 
-    switch ( m_pIntInfo->event ) {
-        case IE_KEY_PRESSED:
-            {
-                _realkeyResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);
-            }
-            break;
+	switch ( m_pIntInfo->event ) {
+		case IE_KEY_PRESSED:
+			{
+				_realkeyResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);
+			}
+			break;
 		case IE_SPECIAL_KEY:
 			{
 				_realSpecialResponse(m_pIntInfo->key, m_pIntInfo->x, m_pIntInfo->y);	
@@ -1359,249 +1276,73 @@ int CSitubeRender::dumpRegions(const char* fnRegion)
 	return 0;
 }
 
-void CSitubeRender::drawCanvas(bool bGrid)
+int CSitubeRender::dumpFiberIdx(const char* fnFiberidx)
 {
-	glPushAttrib(GL_ALL_ATTRIB_BITS);
-	glPushClientAttrib(GL_ALL_CLIENT_ATTRIB_BITS);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDisable(GL_LIGHTING);
-	glDisable(GL_COLOR_MATERIAL);
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_LINE_STIPPLE);
-
-	// ------------------------------------------------
-	// draw the ground canvas
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-	gluLookAt(0, 0, 
-			70.76 * 6.0,
-			//( m_minCoord[2] + m_maxCoord[2] )*3,
-			0, 0, 0, 0, 1, 0);
-	/*
-	glTranslatef( - (m_loader.getMaxCoord(0) + m_loader.getMinCoord(0))/2,
-				  -	(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2,
-				  -	(m_loader.getMaxCoord(2) + m_loader.getMinCoord(2))/2 );
-				  */
-	glTranslatef( 0,
-					30 - 124.26,
-					- 70.76*2.0
-				  //60 -	(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2,
-				  //-	(m_loader.getMaxCoord(2) + m_loader.getMinCoord(2))/2 
-				  );
-
-	glColor3f(80.0/255, 80.0/255, 80.0/255);
-	GLdouble fscale = 1.5;
-	GLdouble h = m_loader.getMaxCoord(2);
-	GLdouble w = m_loader.getMaxCoord(0);
-	glBegin(GL_POLYGON);
-		glVertex3f( -w * fscale, -1, -h*8 * fscale);
-		glVertex3f( -w * fscale, -1, h * fscale);
-		glVertex3f( w * fscale, -1, h * fscale);
-		glVertex3f( w * fscale, -1, -h*8 * fscale);
-	glEnd();
-
-	if ( bGrid ) {
-		glColor3f(0.2,0.2,0.2);
-		GLint viewmat[4];
-		glGetIntegerv(GL_VIEWPORT, viewmat);
-		GLfloat gridCellW = viewmat[2]*1.0/50, gridCellH = gridCellW * 4 * viewmat[3]/viewmat[2];
-		// vertical grid lines
-		glBegin(GL_LINES);
-			for (int i = 1; i <= 2*w*fscale / gridCellW; i++) {
-				glVertex3f(-w*fscale + i*gridCellW, -0.5, h*fscale);
-				glVertex3f(-w*fscale + i*gridCellW, -0.5, -h*8*fscale);
-			}
-		glEnd();
-
-		// horizontal grid lines
-		glBegin(GL_LINES);
-			for (int i = 1; i <= h*9*fscale / gridCellH; i++) {
-				glVertex3f(-w*fscale, -0.5, -h*8*fscale + i*gridCellH);
-				glVertex3f(w*fscale, -0.5, -h*8*fscale + i*gridCellH);
-			}
-		glEnd();
-	}
-
-	glPopMatrix();
-	glPopClientAttrib();
-	glPopAttrib();
-	// ------------------------------------------------
-}
-
-int CSitubeRender::projectSkeleton(int x, int y, bool bZ)
-{
-	if ( "" == m_strfnskeleton ) {
-		return 0;
-	}
-	// just initialize -- translate the skeleton geometries to center at (0,0,0)
-	if ( -1 == x && -1 == y ) {
-		// load skeleton geometry if requested and available
-		if ( "" != m_strfnskeleton && 0 != m_skeletonLoader.load(m_strfnskeleton) ) {
-			m_cout << "Loading the skeletonic geometry failed, aborted.\n";
-			return -1;
+	string strfn(fnFiberidx);
+	if ("" == strfn) {
+		// split directory and file name in the input file m_strfnsrc
+		string fnsrc(m_strfnsrc), fndir("./");
+		size_t loc = fnsrc.rfind('/');
+		if ( string::npos != loc ) {
+			fndir.assign(m_strfnsrc.begin(), m_strfnsrc.begin() + loc + 1);
+			fnsrc.assign(m_strfnsrc.begin() + loc + 1, m_strfnsrc.end());
 		}
-		m_staticSkeleton = m_skeletonLoader;
 
-		unsigned long szSkeletonTotal = m_skeletonLoader.getSize();
-		for (unsigned long idx = 0; idx < szSkeletonTotal; ++idx) {
-			vector<GLfloat> & line = m_skeletonLoader.getElement( idx );
-			unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
-			for (unsigned long idx = 0; idx < szPts; idx++) {
-				line[idx*6+3] -= ( m_skeletonLoader.getMinCoord(0) + m_skeletonLoader.getMaxCoord(0) )/2;
-				line[idx*6+4] -= ( m_skeletonLoader.getMinCoord(1) + m_skeletonLoader.getMaxCoord(1) )/2;
-				line[idx*6+5] -= ( m_skeletonLoader.getMinCoord(2) + m_skeletonLoader.getMaxCoord(2) )/2;
-			}
-		}
-		m_orgSkeleton = m_skeletonLoader;
-		return 1;
+		// automate the file name if not offered explicitly
+		ostringstream ostrfn;
+		ostrfn << fndir << "fiberidx_" << time(NULL) 
+			<< "_" << fnsrc << ends;
+		strfn = ostrfn.str();
 	}
-
-	/* project all skeleton vertices to the XZ plane simply zeroing all Y
-	 * coordinates
-	 */
-	GLfloat mvmat[16];
-	glGetFloatv(GL_MODELVIEW_MATRIX, mvmat);
-
-	/* -------------------- loitering with the extremely inveterate problem of
-	 * skeleton rotation for more than 6 hours, now this is the only makeshift I
-	 * can find. Just an expedient as a matter of fact
-	for (int i=0;i<=2;i++) {
-		mvmat[i] *= -1;
-	}
-
-	 */
-	GLfloat w = 1;
-	m_skeletonLoader = m_orgSkeleton;
-	GLfloat dx = x - m_mx, dy = y - m_my, dz = 0.0;
-	GLfloat a, b, c, d=0;
-
-	GLdouble fangle = -1.0;
-	a = dy, b = dx, c = dz, d=0;
-	// rotate around Z axis
-	if ( bZ ) {
-		a = b = 0;
-		c = 1;
-		fangle *= (dx > 0 || dy < 0)?1:-1;
-	}
-
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-	// rotate the rotation axis firstly
-	glRotatef(fangle, a, b, c);
-	GLfloat mvmat2[16];
-	glGetFloatv(GL_MODELVIEW_MATRIX, mvmat2);
-	transpoint(mvmat2, a, b, c, d);
-	glLoadIdentity();
-	// then prepare rotation matrix for rotating skeleton fibers
-	glRotatef(fangle, a, b, c);
-	glGetFloatv(GL_MODELVIEW_MATRIX, mvmat2);
-	//dumpMatrix(mvmat2);
-	glPopMatrix();
-
-	//m_skeletonLoader.load(m_strfnskeleton);
-	unsigned long szSkeletonTotal = m_skeletonLoader.getSize();
-	for (unsigned long idx = 0; idx < szSkeletonTotal; ++idx) {
-		vector<GLfloat> & line = m_skeletonLoader.getElement( idx );
-		unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
-		for (unsigned long idx = 0; idx < szPts; idx++) {
-			/*
-			line[idx*6+3] -= ( m_minCoord[0] + m_maxCoord[0] )/2;
-			line[idx*6+4] -= ( m_minCoord[1] + m_maxCoord[1] )/2;
-			line[idx*6+5] -= ( m_minCoord[2] + m_maxCoord[2] )/2;
-			*/
-
-			//line [ idx*6 + 4 ] = m_orgSkeleton.getElement( idx ) [ idx*6 + 4 ];
-			transpoint (mvmat2, 
-				line [ idx*6 + 3 ],
-				line [ idx*6 + 4 ],
-				line [ idx*6 + 5 ],
-				w);
+	
+	ofstream ofs(strfn.c_str());
+	ostringstream ostr;
+	size_t cnt = 0;
+	for (size_t i = 0; i < m_edgeflags.size(); i++) {
+		if ( m_edgeflags[i] == GL_TRUE ) {
+			cnt ++;
+			ostr << i << "\n";
 		}
 	}
+	ofs << cnt << "\n";
+	ofs << ostr.str();
+	ofs.close();
 
-	m_orgSkeleton = m_skeletonLoader;
-
-	for (unsigned long idx = 0; idx < szSkeletonTotal; ++idx) {
-		vector<GLfloat> & line = m_skeletonLoader.getElement( idx );
-		unsigned long szPts = static_cast<unsigned long>( line.size()/6 );
-		for (unsigned long idx = 0; idx < szPts; idx++) {
-			line [ idx*6 + 4 ] = 0;
-				//-(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2 - mvmat[13];
-		}
-	}
-
+	m_cout << "indices of fibers selected dumped into " << strfn << ".\n";
 	return 0;
 }
 
-void CSitubeRender::drawSkeleton()
+int CSitubeRender::dumpBoxpos(bool bTangential, const char* fnBoxpos)
 {
-	GLfloat mvmat[16];
-	glGetFloatv(GL_MODELVIEW_MATRIX, mvmat);
-
-	glPushAttrib(GL_ALL_ATTRIB_BITS);
-	glPushClientAttrib(GL_ALL_CLIENT_ATTRIB_BITS);
-	glDisable(GL_BLEND);
-	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glColor3f(.0,.0,.0);
-	glDisable(GL_LIGHTING);
-	glDisable(GL_COLOR_MATERIAL);
-
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-	/*
-	 * If we want dropping all external translations, we need the following
-	 * viewing transformation
-	gluLookAt(0, 0, 
-			( m_minCoord[2] + m_maxCoord[2] )*3,
-			0, 0, 0, 0, 1, 0);
-	 */
-	glScalef(1.6,1.0,1.0);
-	glTranslatef(0,
-				30-124.26-mvmat[13],
-				//60-(m_loader.getMaxCoord(1) + m_loader.getMinCoord(1))/2 - mvmat[13],
-				mvmat[14]/2);
-
-	// remove rotations but translations
-	for (int i=0;i<4;i++) {
-		for (int j=0;j<4;j++) {
-			/*
-			if (j==3)  {
-				mvmat[j*4+i] = 0.0; // remove the translation
-			}
-			*/
-
-			if (i==j) {
-				mvmat[j*4+i] = 1.0; // remove the rotation 
-			}
-			else if (i<3 && j<3) {
-				mvmat[j*4+i] = 0.0; // remove the rotation 
-			}
-		}
+	if ( m_boxes.size() < 1 ) {
+		return -1;
 	}
-	glMultMatrixf( mvmat );
 
-	unsigned long szTotal = m_skeletonLoader.getSize();
-	for (unsigned long idx = 0; idx < szTotal; ++idx) {
-		vector<GLfloat> & curLine = m_skeletonLoader.getElement( idx );
-
-		if ( m_bUseOrgColor ) {
-			glInterleavedArrays(GL_C3F_V3F, 0, &curLine[0]);
-		}
-		else {
-			glInterleavedArrays(GL_V3F, 6*sizeof(GLfloat), &curLine[3]);
-		}
-
-		// using vertices as normals
-		glNormalPointer( GL_FLOAT, 6*sizeof(GLfloat), &curLine[3]);
-
-		glDrawArrays(GL_LINE_STRIP, 0, curLine.size()/6);
+	string strfn(fnBoxpos);
+	if ( "" == strfn ) {
+		_formFilename(strfn, "tumorbox", m_strfnsrc, false);
 	}
-	glPopMatrix();
-	glPopClientAttrib();
-	glPopAttrib();
+
+	ofstream ofs(strfn.c_str());
+	ofs << (bTangential?"Y":"N") << "\n";
+	m_boxes[0].reportself( ofs, true );
+	ofs.close();
+
+	m_cout << "box 0 measure dumped into " << strfn << ".\n";
+	return 0;
+}
+
+void CSitubeRender::handleBtnEvents(int event)
+{
+	switch (event) {
+		case 5: // show context or not
+			m_bShowContext = !m_bShowContext;
+			m_buttons[5].switchStatus();
+			break;
+		default:
+			break;
+	}
+	CGLIBoxApp::handleBtnEvents(event);
 }
 
 int CSitubeRender::_initSharedInfo(bool bInit)
@@ -1677,14 +1418,6 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 				glColor3fv( m_colors );
 			}
 			break;
-		case 'r':
-			if ( !m_bIboxEnabled ) {
-				return;
-			}
-			m_bRemovalbased = ! m_bRemovalbased;
-			m_cout << "Enter into " << 
-				(m_bRemovalbased?"removal":"selection") << " mode.\n";
-			break;
 		case 'v':
 			m_bVnormal = ! m_bVnormal;
 			break;
@@ -1692,9 +1425,11 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 			m_bUseDirectionColor = ! m_bUseDirectionColor;
 			if ( m_bUseDirectionColor ) {
 				glEnableClientState( GL_COLOR_ARRAY );
+				m_bGadgetEnabled = true;
 			}
 			else {
 				glDisableClientState( GL_COLOR_ARRAY );
+				m_bGadgetEnabled = false;
 			}
 			break;
 		case 'm':
@@ -1731,49 +1466,33 @@ void CSitubeRender::_realkeyResponse(unsigned char key, int x, int y)
 			break;
 #endif
 		case '0': // possibly we have already occupied the idlefunc callback!
-			CGLIBoxApp::keyResponse(key, x, y);
 			return;
 		case 27: // from the interaction standpoint, 
 				 // ESC is not a good choice for exiting, we use PAGE_DOWN
 				 // instead
-			cleanup();
-			exit(EXIT_FAILURE);
 			if ( m_bSync && m_nSiblings < 1 ) {
 				CGLIBoxApp::keyResponse(key, x, y);
 			}
 			return;
 		case 32: // Space bar to trigger next task if any
 			if ( "" != m_strfntask ) {
-				if ( 0 ) { //m_taskbox.iscovered() /*&& !m_taskbox.isPrompt()*/ ) {
+				if ( m_taskbox.iscovered() && !m_taskbox.isPrompt() ) {
 					m_bGadgetEnabled = true;
-					m_bIboxEnabled = true;
 					m_taskbox.turncover(false);
-					m_cout << "Get into another task.\n";
+					m_cout << "task started...\n";
 				}
 				else {
-					if ( m_strAnswer == "" ) {
-						m_cout << "illegal intention to moving next: no response received.\n";
-						break;
-					}
 					m_taskbox.turncover(true);
 					if ( m_taskbox.next() ) {
 						m_bIboxEnabled = false;
 						m_bGadgetEnabled = false;
 					}
 					else { // all task listed out already
-						if ( m_nKey == atoi(m_strAnswer.c_str()) ) {
-							m_strAnswer += " (correct).";
-						}
-						else {
-							m_strAnswer += " (wrong).";
-						}
-						m_cout << "Task completed with Answer : " << m_strAnswer << "\n";
 						cleanup();
 						exit(EXIT_SUCCESS);
 						m_bIboxEnabled = true;
 						m_bGadgetEnabled = true;
 						m_taskbox.turncover(false);
-
 					}
 				}
 				break;
@@ -1808,23 +1527,29 @@ void CSitubeRender::_realSpecialResponse(int key, int x, int y)
 					dumpRegions();
 				}
 			}
-			break;
-		case GLUT_KEY_F2:
-			if ( !m_bIboxEnabled ) {
-				return;
+			return;
+		case GLUT_KEY_F12:
+			{
+				if (m_bIboxEnabled && m_boxes.size() > 0) {
+					dumpFiberIdx();
+				}
 			}
-			m_bOR = !m_bOR;
-			m_cout << "Changed into " << 
-				(m_bOR?"OR":"AND") << " associative pattern.\n";
-			break;
-		case GLUT_KEY_F1:
-			m_bShowHelp = !m_bShowHelp;
-			break;
+			return;
+		case GLUT_KEY_PAGE_UP:
+			{
+				if (m_bIboxEnabled && m_boxes.size() > 0) {
+					dumpBoxpos(true);
+				}
+			}
+			return;
+		case GLUT_KEY_PAGE_DOWN:
+			{
+				if (m_bIboxEnabled && m_boxes.size() > 0) {
+					dumpBoxpos(false);
+				}
+			}
+			return;
 		default:
-			if ( key == GLUT_KEY_HOME ) {
-				projectSkeleton(-1, -1);
-				m_bSkeletonPrjInitialized = false;
-			}
 			CGLIBoxApp::specialResponse(key, x, y);
 			return;
 	}
@@ -1855,206 +1580,34 @@ void CSitubeRender::_on_killed(int sig)
 	}
 }
 
-int CSitubeRender::_loadFiberIdx()
+int CSitubeRender::_formFilename(std::string& fnout, const std::string& prefix,
+			const std::string& fnsrc, bool usetime, const char* extension)
 {
-	unsigned long szFibers=0, i=0, curIdx=0, last;
-	GLfloat mins[3] = {LOCAL_MAXDOUBLE, LOCAL_MAXDOUBLE, LOCAL_MAXDOUBLE}, 
-			maxs[3] = {-LOCAL_MAXDOUBLE, -LOCAL_MAXDOUBLE, -LOCAL_MAXDOUBLE};
-	// load fiber indices as standard key and compute the size of a box that
-	// will imaginarily wrap the median points of those fiber at the same time
-	ifstream ifs(m_strfnFiberIdx.c_str());
-	if ( !ifs.is_open() ) {
-		return -1;
+	// split directory and file name in the input file fnsrc
+	string fnfile(fnsrc), fndir("./"), strext(extension);
+	size_t loc = fnfile.rfind('/');
+	if ( string::npos != loc ) {
+		fndir.assign(fnsrc.begin(), fnsrc.begin() + loc + 1);
+		fnfile.assign(fnsrc.begin() + loc + 1, fnsrc.end());
 	}
 
-	// the first line tell how many fiber are following
-	ifs >> szFibers;
-
-	// then each line tell a single integer as fiber indices
-	// NOTE: obviously we pressume a strict correspondence from source tgdata,
-	// the object geometry, to this fiber index file
-	while ( ifs && i < szFibers ) {
-		ifs >> curIdx;
-
-		if ( curIdx < 0 || curIdx >= m_alltubefaceIdxs.size() ) {
-			cerr << "FATAL: invalid source geometry or fiber indices in line: "
-				<< i << ".\n";
-			return -1;
+	// retrieve extension from fnsrc if needed
+	string strname(fnfile);
+	if ( "" != strext ) { 
+		loc = fnfile.rfind('.');
+		if ( string::npos != loc ) {
+			strname.assign(fnfile.begin(), fnfile.begin() + loc + 1);
+			strname += strext;
 		}
-
-		last = m_alltubevertices[curIdx].size()/3 - 1;
-		for (int j = 0; j < 3; j++) {
-			if ( mins[j] > m_alltubevertices[curIdx][last*3+j] ) {
-				mins[j] = m_alltubevertices[curIdx][last*3+j];
-			}
-
-			if ( maxs[j] < m_alltubevertices[curIdx][last*3+j] ) {
-				maxs[j] = m_alltubevertices[curIdx][last*3+j];
-			}
-		}
-
-		m_expectedFiberIndices.insert( curIdx );
-		i++;
 	}
 
-	if ( i < szFibers ) {
-		cerr << "only " << i << " of expected " << szFibers << " fibers loaded.\n";
+	ostringstream ostrfn;
+	ostrfn << fndir << prefix << "_";
+	if ( usetime ) {
+		ostrfn << time(NULL) << "_";
 	}
-	//cout << "nmfbers: " << i << "\n";
-	//exit(0);
-
-	return 0;
-}
-
-void CSitubeRender::_drawMarkers()
-{
-	unsigned long curIdx=0;
-	//GLfloat x, y, z;
-
-	glPushAttrib(GL_ALL_ATTRIB_BITS);
-	glDisable(GL_LIGHTING);
-	glColor3f(1.0, 1.0, 0.0);
-	std::set<unsigned long>::iterator it = m_expectedFiberIndices.begin();
-	int sIdx = 0, eIdx;
-	//GLfloat curBoxSize = (GLfloat)m_boxes[m_nKey-1].getDimension();
-	point_t keyBoxCenter = m_boxes[m_nKey - 1].getCenter();
-	point_t fiberstart, fiberend, markPt,
-			offset (
-			( m_minCoord[0] + m_maxCoord[0] )/2,
-			( m_minCoord[1] + m_maxCoord[1] )/2,
-			( m_minCoord[2] + m_maxCoord[2] )/2 );
-
-	while ( it != m_expectedFiberIndices.end() ) {
-		curIdx = *it; 
-		sIdx = 0;
-		eIdx = m_alltubevertices[curIdx].size()/3 - 1;
-		fiberstart.update (
-				m_alltubevertices[curIdx][sIdx*3+0],
-				m_alltubevertices[curIdx][sIdx*3+1],
-				m_alltubevertices[curIdx][sIdx*3+2] );
-		fiberend.update (
-				m_alltubevertices[curIdx][eIdx*3+0],
-				m_alltubevertices[curIdx][eIdx*3+1],
-				m_alltubevertices[curIdx][eIdx*3+2] );
-		fiberstart = fiberstart - offset;
-		fiberend = fiberend - offset;
-
-		if ( fiberstart.distanceTo( keyBoxCenter ) > fiberend.distanceTo ( keyBoxCenter ) ) {
-			markPt = fiberstart;
-		}
-		else {
-			markPt = fiberend;
-		}
-
-		markPt = markPt + offset;
-		glPushMatrix();
-		glTranslatef(markPt.x, markPt.y, markPt.z);
-		glutSolidSphere(0.5, 50, 50);
-		glPopMatrix();
-		it ++;
-	}
-
-	glTranslatef( ( m_minCoord[0] + m_maxCoord[0] )/2,
-			( m_minCoord[1] + m_maxCoord[1] )/2,
-			( m_minCoord[2] + m_maxCoord[2] )/2);
-
-	// draw box identities
-	for ( int k = 0; k < (int)m_boxes.size(); k++ ) {
-		ostringstream label;
-		label << (k+1) << ends;
-
-		/*
-		printText(label.str().c_str(), 
-				//m_tumorBoxMax[k].x, m_tumorBoxMax[k].y, m_tumorBoxMax[k].z, 
-				m_tumorBoxMin[k].x, m_tumorBoxMin[k].y, m_tumorBoxMax[k].z, 
-				0.0, 1.0, 1.0, 1.0, GLUT_BITMAP_TIMES_ROMAN_24);
-		*/
-		printStrokeText(label.str().c_str(), 
-				m_tumorBoxMin[k].x, m_tumorBoxMin[k].y, m_tumorBoxMax[k].z, 
-				0.0, 1.0, 1.0, 1.0);
-	}
-
-	glEnable(GL_LIGHTING);
-
-	glPopAttrib();
-}
-
-bool CSitubeRender::_getAnswer(unsigned char key)
-{
-	/*
-	if ( m_taskbox.iscovered() ) {
-		return false;
-	}
-
-	if ( '1' != key && '2' != key && '3' != key ) {
-		return false;
-	}
-	*/
-	if ( m_curseloptidx == -1 ) {
-		return true;
-	}
-
-	if ( m_curseloptidx == int(m_optPanel.m_buttons.size()) - 1 ) {
-		if ( m_nTaskAnswer == -1 ) {
-			m_cout << "illegal intention to moving next: no response received.\n";
-			return false;
-		}
-
-		m_strAnswer += ('1' + m_nTaskAnswer);
-
-		if ( m_nKey == atoi(m_strAnswer.c_str()) ) {
-			m_strAnswer += " (correct).";
-		}
-		else {
-			m_strAnswer += " (wrong).";
-		}
-		m_cout << "Task completed with Answer : " << m_strAnswer << "\n";
-		cleanup();
-		exit(EXIT_SUCCESS);
-	}
-
-	//m_strAnswer += key;
-	return true;
-}
-
-int CSitubeRender::_loadTumorBoxpos()
-{
-	int nBoxes = (int)m_strfnTumorBoxes.size();
-	m_tumorBoxMin.resize( nBoxes );
-	m_tumorBoxMax.resize( nBoxes );
-
-	string discard;
-	for (int i = 0; i < nBoxes; i++) {
-		ifstream ifs(m_strfnTumorBoxes[i].c_str());
-		if ( !ifs.is_open() ) {
-			return -1;
-		}
-
-		// we only care about the 3 lines of the file
-		// 1st line: the task key, but not used in this version, so discarded
-		if ( !ifs ) return -1;
-		ifs >> discard;
-
-		// 2nd line: the coordinate of the minor corner of the tumor bounding box
-		if ( !ifs ) return -1;
-		ifs >> fixed >> setprecision(6);
-		ifs >> m_tumorBoxMin[i].x >> m_tumorBoxMin[i].y >> m_tumorBoxMin[i].z;
-
-		// 3rd line: the coordinate of the major corner of the tumor bounding box
-		if ( !ifs ) return -1;
-		ifs >> m_tumorBoxMax[i].x >> m_tumorBoxMax[i].y >> m_tumorBoxMax[i].z;
-
-		ifs.close();
-
-		/*
-		cout << "box " << i << " loaded:";
-		cout << m_tumorBoxMax[i] << m_tumorBoxMin[i] << "\n";
-		*/
-
-		m_boxes[i].setMinMax( m_tumorBoxMin[i].x, m_tumorBoxMin[i].y, m_tumorBoxMin[i].z,
-				m_tumorBoxMax[i].x, m_tumorBoxMax[i].y, m_tumorBoxMax[i].z);
-	}
-
+	ostrfn << strname << ends;
+	fnout = ostrfn.str();
 	return 0;
 }
 

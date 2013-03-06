@@ -236,7 +236,16 @@ public:
 	 * given by the index of the streamline storage, as is a linear structure
 	 * created by loading the input geometry of streamlines
 	 */
-	void buildTubefromLine(unsigned long lineIdx);
+	//void buildTubefromLine(unsigned long lineIdx);
+	void buildTubefromLine(const vector<GLfloat> & line, long lineIdx);
+	/* simulate lesion effect by simply using transparency - make transparent
+	 * those vertices within any box
+	 */
+	void kickoutpoints();
+	/* simulate lesion effect by modifying streamline geometries - chop off
+	 * streamline segments that intersect with any box
+	 */
+	void cutStreamlines();
 
 	/*
 	 * serialize the streamtube geometry generated into a file in the format
@@ -280,6 +289,7 @@ public:
     void draw_tube_caps();
 	void do_draw();
 	void onIdle(void);
+	void onReshape( GLsizei w, GLsizei h );
 
 	// tell the number of sibling processes in order to realize an imperative
 	// interaction input synchronization
@@ -364,8 +374,8 @@ private:
 	vector< vector<GLfloat> >		m_alltubevertices;
 	vector< vector<GLfloat>	>		m_alltubenormals;
 	vector< vector<GLfloat>	>		m_alltubecolors;
-	vector< vector<GLfloat>	>		m_encodedcolors;
     vector< vector<GLfloat> >       m_alltubetexcoords;
+	vector< vector<GLfloat>	>		m_encodedcolors;
 	vector< vector<GLuint> >		m_alltubefaceIdxs;
 
     vector< vector<GLfloat> >		m_alltubecapvertices;
@@ -376,6 +386,7 @@ private:
 	vector< vector<GLuint> >		m_alltubecapfaceIdxs;
 
 
+	vector< vector<GLfloat> >		m_linestore;
 
 	/* get the maximal X,Y and Z coordinate among all vertices */
 	GLdouble m_maxCoord[3];	
@@ -443,6 +454,11 @@ private:
 
 	/* if the skeleton projection has been initializd */
 	bool m_bSkeletonPrjInitialized;
+
+	/* specifically for the lesion task */
+	GLdouble m_clickDist;
+	bool m_bShowClickResponse;
+	int m_mrx, m_mry;
 private:
 	// draw a canvas to which the skeleton will be projected
 	void drawCanvas(bool bGrid = true);
@@ -504,7 +520,7 @@ private:
 	void _drawMarkers();
 
 	// simply read user's keyboard type as the answer
-	bool _getAnswer(unsigned char key);
+	bool _getAnswer(int button, int state, int x, int y);
 	// load bounding box information for the tumor potato
 	int _loadTumorBoxpos();
 };

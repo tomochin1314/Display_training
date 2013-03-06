@@ -86,7 +86,7 @@ CGLApp::CGLApp() : CApplication(),
 	m_wTitle("GL program untitled"),
 	m_x(-1), m_y(-1),
 	m_width(-1), m_height(-1),
-	m_dispMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH ),
+	m_dispMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE ),
 	m_bAnimated(false),
 	m_pressedbtn(-1),
 	m_mx(0), m_my(0),
@@ -121,7 +121,7 @@ CGLApp::CGLApp(int argc, char** argv) : CApplication(argc, argv),
 	m_wTitle("GL program untitled"),
 	m_x(-1), m_y(-1),
 	m_width(-1), m_height(-1),
-	m_dispMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH),
+	m_dispMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE),
 	m_bAnimated(false),
 	m_pressedbtn(-1),
 	m_mx(0), m_my(0),
@@ -361,7 +361,7 @@ int CGLApp::mainstay()
 	glutMouseFunc(_mouseResponse);
 	glutMotionFunc(_mouseMotionResponse);
 	glutPassiveMotionFunc(_mousePassiveMotionResponse);
-	//glutMouseWheelFunc(_mouseWheelRollResponse);
+    glutMouseWheelFunc(_mouseWheelRollResponse);
 	glutKeyboardFunc(_keyResponse);
 	glutSpecialFunc(_specialResponse);
 	glutReshapeFunc(_onReshape);
@@ -708,13 +708,13 @@ void CGLApp::keyResponse(unsigned char key, int x, int y)
 	case 'z':
 	case '=': // meant for '+'
 		_act = TRANSLATE;
-		_quantity.update(0.0, 0.0, 1.0);
+		_quantity.update(0.0, 0.0, 5.0); // modified by XLM, increase the z distance
 		m_cout << "Move backwards.\n";
 		break;
 	case 'Z':
 	case '-':
 		_act = TRANSLATE;
-		_quantity.update(0.0, 0.0, -1.0);
+		_quantity.update(0.0, 0.0, -5.0); // modified by XLM, increase the z distance
 		m_cout << "Move forwards.\n";
 		break;
 	default:

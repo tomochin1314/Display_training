@@ -1,6 +1,7 @@
 //TODO: the alpha of the return color of function tone is not 1.0
 varying vec3 normal;
 varying vec3 light0_dir, light1_dir, light2_dir, light3_dir, eye_vec;
+varying float keyfiber;
 // eye light
 const vec4 light0_diff = vec4(0.6f, 0.6f, 0.6f, 1.0);
 const vec4 light0_specular = vec4(1.f, 1.f, 1.f, 1.f);
@@ -21,8 +22,6 @@ const vec4 light3_diff = vec4(0.1, 0.1, 0.1, 1.0);
 const vec4 light3_specular = vec4(1.f, 1.f, 1.f, 1.f);
 const vec4 light3_ambient = vec4(0.f, 0.f, 0.f, 1.f);
 
-// if gl_Color equals to keycolor, we don't apply any effect
-const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);
 
 // cold and warm color
 const vec4 cold = vec4(0.0f, 0.f, 1.0f, 1.0f);
@@ -46,6 +45,7 @@ vec4 tone(vec4 cwarm, vec4 ccold)
 
     /*vec4 color = mix(cwarm, ccold, intensity);*/
 
+    /*
     vec3 E = normalize( eye_vec );
     vec3 R = reflect(-l0, n);
 
@@ -89,7 +89,7 @@ vec4 tone(vec4 cwarm, vec4 ccold)
         color += light3_specular * gl_FrontMaterial.specular
             * specular;
     }
-
+*/
     return color;
 }
 
@@ -111,8 +111,9 @@ void main()
     vec4 ccold = min( cold * 0.6 + vec4(1., 0., 0., 1.) * 0.2, 1.0f);
 
 
-    if(gl_Color == keycolor)
-        gl_FragColor = gl_Color * max(0.f, dot( normalize(light0_dir), normalize(normal) ) );
+    if(keyfiber > 0.f)
+        /*gl_FragColor = gl_Color * max(0.f, dot( normalize(light0_dir), normalize(normal) ) );*/
+        gl_FragColor = vec4(gl_Color.xyz * max(0.f, dot( normalize(light0_dir), normalize(normal) ) ), 1.f);
     else
         gl_FragColor = vec4(tone(cwarm, ccold).xyz, 1.f) * gl_Color;
 

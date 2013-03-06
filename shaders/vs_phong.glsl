@@ -2,6 +2,10 @@
 varying vec3 normal;
 varying vec3 light0_dir, light1_dir, light2_dir, light3_dir, eye_vec;
 
+varying float keyfiber;
+// if vertex color equals to keycolor, we don't apply any effect for tone shading
+const vec4 keycolor = vec4(1.f, 1.f, 0.f, 1.f);
+
 void main() {
 
     normal = gl_NormalMatrix * gl_Normal;
@@ -16,4 +20,8 @@ void main() {
     // because of using the colorpointer
     // we use the glcolor as material diffuse
     gl_FrontColor = gl_Color;
+
+    if(gl_Color == keycolor)
+        keyfiber = 1.0f;
+    else keyfiber = 0.f;
 }

@@ -22,7 +22,7 @@
 #define RELOC_NUM 4   // at most 8, number of relocation depth texture
 #define RELOC_STEP 0.3
 #define RELOC_INIT 0.5  // relocation scale, smallest value
-#define TEXCOORD_V_STEP 0.2f  // used in situbeRender.cpp, generating the texcoord
+#define TEXCOORD_V_STEP 0.5f  // used in situbeRender.cpp, generating the texcoord
 
 #define MAX_SHADOW_LEN 2.0f
 #define MIN_SHADOW_LEN 0.5f
@@ -81,6 +81,7 @@ class phong_t
 
 
         shader_t *halo_shader;
+        shader_t *fxaa_shader;
   
     public:
         phong_t(CSitubeRender *_tr): halo(0), tr(_tr), depth_based_shadow(0){}
@@ -119,6 +120,7 @@ class phong_t
         void render_phong();
 
         void render_halo();
+        void fxaa();
         // DEBUG only. this piece of code draw the depth buffer onscreen
         void render_tex(GLuint tex_id);
         void render() ;

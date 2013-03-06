@@ -118,8 +118,8 @@ void tone_t::generateShadowFBO()
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     // check FBO status
-    error::checkFramebufferStatus();
-    error::printFramebufferInfo();
+    //error::checkFramebufferStatus();
+    //error::printFramebufferInfo();
 
     // switch back to window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -206,7 +206,7 @@ void tone_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 
     glBindFramebuffer(GL_FRAMEBUFFER,0);	
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 
@@ -272,7 +272,7 @@ void tone_t::render_shadow_mask_tex()
 
     glPopAttrib();
 
-    print_error();    
+    //print_error();    
 }
 
 //
@@ -282,18 +282,8 @@ void tone_t::render_tone()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
-    glShadeModel(GL_SMOOTH);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glEnable( GL_BLEND );
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    glEnable( GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_LINE_SMOOTH );
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glEnable( GL_POLYGON_SMOOTH);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 
-    //glDisable(GL_BLEND);
+    glEnable(GL_MULTISAMPLE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
@@ -330,11 +320,16 @@ void tone_t::render_tone()
 
     p_tone_shader->off();
 
+    // draw the caps of tube separately
+    tone_shader->on();
+    tr->draw_tube_caps();
+    tone_shader->off();
+
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].off();
 
     glPopAttrib();
-    print_error();    
+    //print_error();    
 }
 
 void tone_t::render_halo()
@@ -553,8 +548,8 @@ void tone_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
         shadow_len_threshold.push_back(dist);
     }
 
-    for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
+    //for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
+        //printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
@@ -571,8 +566,8 @@ void tone_t::init_misc()
         shadow_length += slen_step;
     }
 
-    for(GLuint i = 0; i < relocation_level.size(); ++i)
-        printf("shadow length levels:%f\n", relocation_level[i]);
+    //for(GLuint i = 0; i < relocation_level.size(); ++i)
+        //printf("shadow length levels:%f\n", relocation_level[i]);
     calc_shadow_len_threshold(slen_step);
 }
 

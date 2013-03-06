@@ -103,45 +103,55 @@
 //		selection that is not in use in CSitubeRender where we do not use vertex
 //		flag to determine a streamline is in a box or not. So it is safe to make
 //		this very reuse of the seemingly deprecated member here in CSitubeRender
-// @Mar. 13th
-//		1. For task0, change on the basis of study-specific version:
-//			--- Keyboard and mouse mapping are all frosted except only
-//			following:
-//			Space : navigate,only forwards, through tasks
-//			Mouse Left button: rotate around X/Y
-//			Mouse left button + CTRL: rotate around Z
-//
-//			--- only use FA color, i.e. the original color offered in the tgdata
-//			source
-//
-//			--- no selection box
-//
-//			--- show several point by circles and let user select the one of
-//			highest FA value
-//
-//			--- 3D spherical color map changed to 2D rectangular color map
-// @mar. 14th
-//			-- exclusively for task 0: select two vertices of the model, draw
-//			straight line with letter at the end as indicator; we want the user
-//			to compare FAs of the two vertices
-//			-- new member _getAnswer() is added to record what would be the
-//			user's answer to the question raised in the task
+//		--- F11 is mapped for this functionality.
 // @Mar. 15th
-//			--- exclusively for task 2 : load a fiber index file to check if the
-//			marked region, a fiber bundle, includes fibers expected, i.e. fibers
-//			that are listed by indices in the  loaded file
+//		1.Still for visualization study's purpose, saving a single or a set of
+//		fiber bundles by dumping the indices of fibers currently selected by
+//		box(es). The first line of the resulting text file will be the number of
+//		fibers dumped with their indices.
+//		--- m_edgeflags is used again for the implementation.
+//		--- F12 is mapped for this functionality.
 // @Mar. 16th
-//			--- exclusively for task 3: marking a specific (indicated by the
-//			loaded fiber indices) fiber bundle at the start points by attaching
-//			equal-size spheres as markers
-//			--- for task 3, since only moving is permitted for the box, mouse
-//			left button will need have no effect on box therefore.
-//			--- fix the box size as such that the end points of the expectedly
-//			selected fibers can be safely covered.
-// @Mar. 18th
-//			--- change the color of spherical marker at the start point of
-//			task-oriented expected fibers from white to yellow, which is more
-//			perceptible for humans
+//		1. for some tasks in visualization study, it is solicited to report the
+//		box information, two corners particularly, at appropriate time; this can
+//		be useful if we want to fathom a space inside the DTI model where I will
+//		place an extraneous object, since I can locate the bounding box of the
+//		would-be outsider by using the box
+//		--- PAGE_UP is mapper for reporting box itself anytime; (Oops, we have
+//		used up all possible function keys F1~F12...)
+//		NOTE: since for the purpose of location probing we need at most one box,
+//		so this function is just to call m_boxes[0].reportself()
+// @Mar. 17th
+//		1. for consistency, box information is also dumped into a text file,
+//		since it will be used later as is loaded from a file.
+//		2. sub-function is formed by extracting the verisimilar logic for
+//		randomly constructing the name of a file under the same directory as
+//		another input file and made discernible by suffixing the time in seconds
+//		3. key mapping for exiting along with all siblings if any is changed
+//		from PAGE_DOWN to INSERT. and PAGE_DOWN is noe mapped for dumping the
+//		box information while telling the box is then separated from fibers
+//		and PAGE_UP, mapped for dumping box information as well, is to tell the
+//		box is then tangential to fibers around. (we originally desired to use
+//		DELETE instead of INSERT since the former is more intuitive, it is
+//		pityful however DELETE is not defined as a function key in standard
+//		GLUT, it is actually defined in extended GLUT though.
+// @Mar. 25th
+//		.Trivial improvement: when orientation coloring is disenable, the color
+//		map gadget should reflect the updated status, which is done simply by
+//		setting the color schme to CLSCHM_CUSTOM, or more brutely, disable the
+//		color map gadget, at that time
+// @April. 12th
+//		.Precompilation macros added to control the integration DWI Image 
+//		Embedding selectively
+// @April. 18th
+//		.m_bRemovalbased and m_bOR are moved upwards to CGLIBoxApp since this
+//		parent class charges all box-related interactions
+//		.help text box is moved further upwards to CGLApp since it is really a
+//		common feature neaded for general GL applications
+// @April. 25th
+//		.Add streamline model rendering, mixed with the original streamtube
+//		model, to provide a context for selecting ROIs; user can toggle the
+//		context like using other binary controls
 //
 // Author: 2011-2012 Haipeng Cai
 //
@@ -220,6 +230,7 @@ protected:
     int m_nShadow;
     string m_strTech;
 
+
 public:
 	CSitubeRender(int argc, char **argv);
 	virtual ~CSitubeRender();
@@ -278,6 +289,7 @@ public:
 	int mainstay();
     void draw_tubes();
     void draw_tube_caps();
+    void draw_streamlines();
 	void do_draw();
 	void onIdle(void);
 
@@ -303,6 +315,14 @@ public:
 	// naming)
 	int dumpRegions(const char* fnRegion="");
 
+	// dump indices of fibers currently selected into a text file, where each
+	// line will store a single fiber in terms of its index in the streamtube
+	// store m_alltubevertices
+	int dumpFiberIdx(const char* fnFiberidx="");
+
+	// dump current box location information into a text file
+	int dumpBoxpos(bool bTangential, const char* fnBoxpos="");
+
 private:
 	/* when coloring schemes are all not used, this color is the uniform color
 	 * for all tubes which is customizable in the run-time*/
@@ -320,10 +340,6 @@ private:
 	/* the contained sub-object used for source geometry loading and parsing */
 	CTgdataLoader m_loader;
 
-	/* used for loading the skeleton geometry */
-	CTgdataLoader m_skeletonLoader;
-	CTgdataLoader m_orgSkeleton, m_staticSkeleton;
-
 	/* source file holding the most essential streamline geometry */
 	string m_strfnsrc;
 	/* file to store dumped geometry in the format of OBJ */
@@ -331,12 +347,8 @@ private:
 	/* directory holding DWI images to embed when needed, mostly b0 images
 	 */
 	string m_strdwidir;
-	/* text file containing interaction help prompt */
-	string m_strfnhelp;
 	/* text file holding a list of tasks for a single session */
 	string m_strfntask;
-
-	string m_strfnskeleton;
 
 	/* Level of Detail, the granularity of interpolation in the fabrication of
 	 * streamtube geometry*/
@@ -346,10 +358,6 @@ private:
 
 	/* if use variant radius for tubes */
 	GLboolean			m_bVradius;
-	/* switch between selection and removal mode */
-	GLboolean			m_bRemovalbased;
-	/* switch between AND and OR associative pattern among boxes */
-	GLboolean			m_bOR;
 
 	/* fantastic factor tunning the streamtube generation */
 	GLfloat m_fAdd;
@@ -376,7 +384,6 @@ private:
 	vector< vector<GLuint> >		m_alltubecapfaceIdxs;
 
 
-
 	/* get the maximal X,Y and Z coordinate among all vertices */
 	GLdouble m_maxCoord[3];	
 	/* get the minimal X,Y and Z coordinate among all vertices */
@@ -386,7 +393,7 @@ private:
 	CColorMapper<GLfloat> m_colormapper;
 	/* currently we might want to compare multiple coloring encoding scheme */
 	int m_colorschemeIdx;
-	/* a rectangular color map gadget */
+	/* a spherical color map gadget */
 	CGLGadget* m_pcmGadget;
 	/* anatomical axes gadget */
 	CGLGadget* m_paxesGagdet;
@@ -394,15 +401,10 @@ private:
 #ifdef DWI_EMBEDDING
 	/* A DICOM DWI IMAGE explorer */
 	CDcmExplorer m_dcmexplorer;
-#endif
 
 	/* DWI Image embedding switch */
 	bool m_bShowDWIImage;
-
-	/* a help prompt gadget */
-	CGLTextbox m_helptext;
-	/* help text box presence switch */
-	bool m_bShowHelp;
+#endif
 
 	/* a task prompt gadget */
 	CGLTaskbox m_taskbox;
@@ -425,32 +427,11 @@ private:
 	/* to suspend entrance into GL event loop or to release it to make enter */
 	bool m_bSuspended;
 
-	// file containing indices of expectedly selected fibers
-	std::string m_strfnFiberIdx;
-
-	// set of the loaded fiber indices
-	std::set<unsigned long> m_expectedFiberIndices;
-
-	std::vector< std::string > m_strfnTumorBoxes;
-	// the opposite corner of the tumor bounding box
-	std::vector< _point_t<GLfloat> > m_tumorBoxMin, m_tumorBoxMax;
-
-	// record what the user typed as the answer to the task 
-	std::string m_strAnswer;
-
-	// the expected answer, i.e. the key
-	int m_nKey;
-
-	/* if the skeleton projection has been initializd */
-	bool m_bSkeletonPrjInitialized;
+	/* if show context - the streamline mode */
+	bool m_bShowContext;
+	// extend the box button function
+	void handleBtnEvents(int event);
 private:
-	// draw a canvas to which the skeleton will be projected
-	void drawCanvas(bool bGrid = true);
-
-	// project fiber bundle skeletons to the XZ plane
-	int projectSkeleton(int x, int y, bool bZ = false);
-	// draw skeleton fibers
-	void drawSkeleton();
 
 	/*
 	 * @brief open (or create for this process launched) the shared memory and
@@ -491,22 +472,20 @@ private:
 	 */
 	static void _on_killed(int sig);
 
-	// load fiber indices from a file where the indices of fibers constituting a
-	// predefined fiber bundle are prepared therein.
-	int _loadFiberIdx();
-
-	// load the expectedly selected fibers by indices and compute the rate of
-	// correct marking thus give result as the evaluation of user's task
-	// performance
-	bool _checkAnswer();
-
-	// draw markers at start points of a predefined fiber bundle
-	void _drawMarkers();
-
-	// simply read user's keyboard type as the answer
-	bool _getAnswer(unsigned char key);
-	// load bounding box information for the tumor potato
-	int _loadTumorBoxpos();
+	/*
+	 * @brief form a name for a file under the same directory as that of the
+	 *  given another file
+	 * @param fnout the resulting file name with full path as fnsrc
+	 * @param prefix a string giving the file name prefix
+	 * @param fnsrc a string giving the reference file full path from where the
+	 * directory will be extracted.
+	 * @param usetime a boolean giving if suffixing with current time in seconds
+	 * @param extension a string giving a different extension from the given
+	 * file. by default the extension will be that of the given file
+	 * @return 0 for success and any other value for failure
+	 */
+	static int _formFilename(std::string& fnout, const std::string& prefix,
+			const std::string& fnsrc, bool usetime = true, const char* extension="");
 };
 
 #endif // _SITUBERENDER_H_

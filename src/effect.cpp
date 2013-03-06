@@ -1,27 +1,21 @@
-#include "hatching.h"
+#include "effect.h"
 #include "situbeRender.h"
 
-void hatching_t::init_shader()
+
+void effect_t::init_shader()
 {
     depth_shader       = new shader_t("shaders/vs_depth.glsl", "shaders/ps_depth.glsl");
     shadow_mask_shader = new shader_t("shaders/vs_shadow_mask.glsl", "shaders/ps_shadow_mask.glsl");
-    dbs_hatching_shader= new shader_t("shaders/vs_depth_encoded_hatching.glsl",
-                                      "shaders/ps_depth_encoded_hatching.glsl");
-    hatching_shader    = new shader_t("shaders/vs_hatching.glsl", "shaders/ps_hatching.glsl");
+    dbs_phong_shader   = new shader_t("shaders/vs_depth_encoded_phong.glsl",
+                                      "shaders/ps_depth_encoded_phong.glsl");
+    phong_shader       = new shader_t("shaders/vs_phong.glsl", "shaders/ps_phong.glsl");
 
-    halo_shader    = new shader_t("shaders/vs_halo.glsl", "shaders/ps_halo.glsl");
+    halo_shader       = new shader_t("shaders/vs_halo.glsl", "shaders/ps_halo.glsl");
 
     if(depth_based_shadow)
-        p_hatching_shader = dbs_hatching_shader;
-    else p_hatching_shader = hatching_shader;
+        p_phong_shader  = dbs_phong_shader;
+    else p_phong_shader = phong_shader;
 
-    //shadow_mask_tex_uniform = p_hatching_shader->get_uniform_location("shadow_mask");
-    hatch_tex_uniform[0]       = p_hatching_shader->get_uniform_location("hatch0");
-    hatch_tex_uniform[1]       = p_hatching_shader->get_uniform_location("hatch1");
-    hatch_tex_uniform[2]       = p_hatching_shader->get_uniform_location("hatch2");
-    hatch_tex_uniform[3]       = p_hatching_shader->get_uniform_location("hatch3");
-    hatch_tex_uniform[4]       = p_hatching_shader->get_uniform_location("hatch4");
-    hatch_tex_uniform[5]       = p_hatching_shader->get_uniform_location("hatch5");
 
     threshold_uniform0         = shadow_mask_shader->get_uniform_location("threshold0");
     reloc_scale_uniform0       = shadow_mask_shader->get_uniform_location("reloc_scale0");
@@ -30,9 +24,10 @@ void hatching_t::init_shader()
     depth_tex_reloc_uniform[1] = shadow_mask_shader->get_uniform_location("depth_map1");
     depth_tex_reloc_uniform[2] = shadow_mask_shader->get_uniform_location("depth_map2");
     depth_tex_reloc_uniform[3] = shadow_mask_shader->get_uniform_location("depth_map3");
+
 }
 
-void hatching_t::gen_reloc_depth_tex(GLuint w, GLuint h)
+void effect_t::gen_reloc_depth_tex(GLuint w, GLuint h)
 {
     for(GLuint i = 0; i < RELOC_NUM; ++i)
     {
@@ -45,7 +40,7 @@ void hatching_t::gen_reloc_depth_tex(GLuint w, GLuint h)
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
         if(use_color_tex)
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+            glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, 0);
         else
             glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, 
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -55,7 +50,7 @@ void hatching_t::gen_reloc_depth_tex(GLuint w, GLuint h)
 }
 
 
-void hatching_t::generateShadowFBO()
+void effect_t::generateShadowFBO()
 {
     depth_map_width  = tr->m_width * SHADOW_MAP_RATIO;
     depth_map_height = tr->m_height * SHADOW_MAP_RATIO;
@@ -71,8 +66,8 @@ void hatching_t::generateShadowFBO()
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     if(use_color_tex)
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16, depth_map_width, depth_map_height, 0, 
-                      GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, depth_map_width, depth_map_height, 0, 
+                      GL_RGBA, GL_FLOAT, 0);
     else
         glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depth_map_width, depth_map_height, 0, 
                       GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
@@ -97,10 +92,6 @@ void hatching_t::generateShadowFBO()
     // create a framebuffer object
     glGenFramebuffers(1, &fbo_id);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_id);
-    glGenRenderbuffers(1, &rbo_id);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, depth_map_width, depth_map_height);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     
     // attach the texture to FBO depth attachment point
@@ -124,26 +115,14 @@ void hatching_t::generateShadowFBO()
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
     // check FBO status
-    //error::checkFramebufferStatus();
-    //error::printFramebufferInfo();
+    error::checkFramebufferStatus();
+    error::printFramebufferInfo();
 
     // switch back to window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void hatching_t::setupMatrices(float position_x,float position_y,float position_z,
-        float lookAt_x,float lookAt_y,float lookAt_z)
-{
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(tr->m_fvoy, tr->m_width/tr->m_height, tr->m_near, tr->m_far);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(position_x,position_y,position_z,lookAt_x,lookAt_y,lookAt_z,0,1,0);
-}
-
-
-void hatching_t::setTextureMatrix(GLuint tex_unit_id)
+void effect_t::setTextureMatrix(GLuint tex_unit_id)
 {
     static double modelView[16];
     static double projection[16];
@@ -177,35 +156,11 @@ void hatching_t::setTextureMatrix(GLuint tex_unit_id)
     glMatrixMode(GL_MODELVIEW);
 }
 
-// During translation, we also have to maintain the GL_TEXTURE8, used in the shadow shader
-// to determine if a vertex is in the shadow.
-void hatching_t::startTranslate(float x,float y,float z)
-{
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glTranslatef(x,y,z);
-	
-	glMatrixMode(GL_TEXTURE);
-	glActiveTextureARB(GL_TEXTURE7);
-	glPushMatrix();
-	glTranslatef(x,y,z);
-
-    glMatrixMode(GL_MODELVIEW);
-}
-
-void hatching_t::endTranslate()
-{
-    glMatrixMode(GL_TEXTURE);
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix();
-}
-
 
 //
 // the first pass
 //
-void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
+void effect_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 {
     // if not push all attrib here, 
     // just push enable bits and viewport bits, will be somehing wrong
@@ -228,7 +183,7 @@ void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
     if(use_color_tex)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D, depth_tex_id, 0);
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        //glDrawBuffer(GL_COLOR_ATTACHMENT0);
         glClearColor(0.0, 1.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);    
     }
@@ -248,14 +203,14 @@ void hatching_t::render_reloc_tube_depth(float scale, GLuint depth_tex_id)
 
     glBindFramebuffer(GL_FRAMEBUFFER,0);	
     glPopAttrib();
-    //print_error();    
+    print_error();    
 }
 
 
 //
 // the second pass
 //
-void hatching_t::render_shadow_mask_tex()
+void effect_t::render_shadow_mask_tex()
 {
     // if not push all attrib here, 
     // just push enable bits and viewport bits, will be somehing wrong
@@ -314,23 +269,24 @@ void hatching_t::render_shadow_mask_tex()
 
     glPopAttrib();
 
-    //print_error();    
+    print_error();    
 }
 
 //
 //  the third pass
 //
-void hatching_t::render_hatching()
+void effect_t::render_phong()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
+    glDisable(GL_BLEND);
     glEnable(GL_MULTISAMPLE);
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].on();
 
     //Using the shadow shader
-    p_hatching_shader->on();
+    p_phong_shader->on();
 
     if(depth_based_shadow)
     {
@@ -343,41 +299,32 @@ void hatching_t::render_hatching()
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); 
     glViewport(0,0, tr->m_width, tr->m_height);
     //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 
     if(depth_based_shadow)
     {
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         glActiveTextureARB(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D,shadow_mask_tex_id);
-        p_hatching_shader->set_uniform1i("shadow_mask", 6);
+        p_phong_shader->set_uniform1i("shadow_mask", 6);
     }
 
-
-    for(GLuint i = 0; i < 6; ++i)
-    {
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D,hatch_tex[i]);
-        glUniform1iARB(hatch_tex_uniform[i],i);
-    }
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+	glMaterialf(GL_FRONT, GL_SHININESS, shininess );		
+	//glMaterialfv(GL_FRONT, GL_AMBIENT, mat_ambient);
 
     tr->draw_tubes();
 
-    p_hatching_shader->off();
-
-    // draw the caps of tube separately
-    hatching_shader->on();
-    tr->draw_tube_caps();
-    hatching_shader->off();
+    p_phong_shader->off();
 
     for(GLuint i = 0; i < lights.size(); ++i)
         lights[i].off();
 
     glPopAttrib();
-    //print_error();    
+    print_error();    
 }
 
-void hatching_t::render_halo()
+void effect_t::render_halo()
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     for(GLuint i = 0; i < lights.size(); ++i)
@@ -393,14 +340,13 @@ void hatching_t::render_halo()
 
     tr->draw_tubes();
     halo_shader->off();
-
     glPopAttrib();
 
 }
 
 // DEBUG only. this piece of code draw the depth buffer onscreen
 // Don't call glClear in this function
-void hatching_t::render_tex(GLuint tex_id)
+void effect_t::render_tex(GLuint tex_id)
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 	glPushClientAttrib(GL_ALL_CLIENT_ATTRIB_BITS);
@@ -451,7 +397,7 @@ void hatching_t::render_tex(GLuint tex_id)
     glPopAttrib();
 }
 
-void hatching_t::render() 
+void effect_t::render() 
 {
     calc_camera();
 
@@ -467,7 +413,7 @@ void hatching_t::render()
         render_shadow_mask_tex();
     }
 
-    render_hatching();
+    render_phong();
 
     //render_tex(depth_tex_reloc_id[0]);
     //render_tex(hatch_tex[0]);
@@ -479,7 +425,7 @@ void hatching_t::render()
     glMatrixMode(GL_MODELVIEW);
 }
 
-void hatching_t::calc_camera()
+void effect_t::calc_camera()
 {
     look_at[0] = ( tr->m_minCoord[0] + tr->m_maxCoord[0] ) * 0.5f; 
     look_at[1] = ( tr->m_minCoord[1] + tr->m_maxCoord[1] ) * 0.5f;
@@ -516,168 +462,9 @@ void hatching_t::calc_camera()
 
 }
 
-
-/*
-   Read a line
-   */
-int hatching_t::ReadLine(FILE *fptr,char *s,int lmax)
-{
-    int i=0,c;
-
-    s[0] = '\0';
-    while ((c = fgetc(fptr)) != '\n' && c != '\r') {
-        if (c == EOF)
-            return(0);
-        s[i] = c;
-        i++;
-        s[i] = '\0';
-        if (i >= lmax)
-            break;
-    }
-    return(1);
-}
-
-/*
-   Read a PPM texture file and return a pointer to the pixelmap
-   and the size of the image.
-   Always return a texture unless the memory allocation fails.
-   Return random noise if the file reading fails.
-   1. The transparency is related to te intensity of the pixel
-   2. The alpha value is set to 255 (opaque) unless the "trans" argument
-   is 't' then treat the colour "c" as fully tranparent, alpha = 0;
-   */
-BITMAP4 *hatching_t::read_ppm(const char *fname,GLfloat *c,int trans,int *w,int *h,int tmode)
-{
-    int r,g,b;
-    int i;
-    double intensity,dr,dg,db,deltac = 1.0 / 255;
-    FILE *fptr;
-    char aline[256];
-    BITMAP4 *ptr;
-
-    /* Allocate memory for the texture */
-    *w = 256;
-    *h = 256;
-    if ((ptr = (BITMAP4 *)malloc((*w)*(*h)*sizeof(BITMAP4))) == NULL) {
-        fprintf(stderr,"Failed to allocate memory for texture \"%s\"\n",fname);
-        exit(-1);
-    }
-
-    /* Start off with a random texture, totally opaque */
-	for (i=0;i<(*w)*(*h);i++) {
-		ptr[i].r = rand() % 255;
-		ptr[i].g = rand() % 255;
-		ptr[i].b = rand() % 255;
-		ptr[i].a = 255;
-	}
-
-	/* Try to open the texture file */
-	if ((fptr = fopen(fname,"rb")) == NULL) {
-		fprintf(stderr,"Failed to open texture file \"%s\"\n",fname);
-		return(ptr);
-	}
-
-	/* Read the PPM header */
-	for (i=0;i<3;i++) {
-		if (!ReadLine(fptr,aline,250))
-			break;
-		if (aline[0] == '#')
-			i--;
-		if (i == 1)
-			sscanf(aline,"%d %d",w,h);
-	}
-
-	/* Allocate memory for the texture */
-	if ((ptr = (BITMAP4 *)realloc(ptr,(*w)*(*h)*sizeof(BITMAP4))) == NULL) {
-		fprintf(stderr,"Failed to allocate memory for texture \"%s\"\n",fname);
-		exit(-1);
-	}
-
-	/* Start off with a random texture, totally opaque */
-	for (i=0;i<(*w)*(*h);i++) {
-		ptr[i].r = rand() % 255;
-		ptr[i].g = rand() % 255;
-		ptr[i].b = rand() % 255;
-		ptr[i].a = 255;
-	}
-
-	/* Actually read the texture */
-	for (i=0;i<(*w)*(*h);i++) {
-		if ((r = fgetc(fptr)) != EOF &&
-				(g = fgetc(fptr)) != EOF &&
-				(b = fgetc(fptr)) != EOF) {
-			ptr[i].r = r;
-			ptr[i].g = g;
-			ptr[i].b = b;
-
-			/* Deal with transparency flag */
-			if (trans == 't') {
-				if (tmode == 1) {
-					intensity = sqrt((double)r*r+g*g+b*b) / sqrtf(3.f);
-					ptr[i].a = intensity;
-				} else {
-					dr = r / 255.0 - c[1];
-					dg = g / 255.0 - c[2];
-					db = b / 255.0 - c[3];
-					if (abs(dr) < deltac && abs(dg) < deltac && abs(db) < deltac)
-						ptr[i].a = 0;
-				}
-			}
-		} else {
-			/* Encountered short texture file */
-			break;
-		}
-	}
-
-	fclose(fptr);
-	return(ptr);
-}
-
-
-void hatching_t::write_ppm(const BITMAP4 *const map, const int w, const int h)
-{
-    FILE *f = fopen("image.ppm", "w");
-    fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
-    for(int i = 0; i < w*h; ++i)
-    {
-        fprintf(f, "%d %d %d ", map[i].r, map[i].g, map[i].b);
-    }
-}
-
-
-void hatching_t::read_tonal_art_maps()
-{
-    for(GLuint i = 0; i < 6; ++i)
-    {
-        std::string path("pictures/hatch");
-        std::string suffix;
-        std::stringstream out;
-        out<<i; out>>suffix;
-        path += suffix+std::string(".ppm");
-        /*
-         *if(i==4)
-         *    path = std::string("pictures/image.ppm");
-         */
-
-        GLfloat white[] = { 1.0, 1.0, 1.0, 1.0 };
-        hatch_pic[i] = read_ppm(path.c_str(),white,'o',&twidth,&theight,2);
-        glGenTextures(1,&hatch_tex[i]);
-        glBindTexture(GL_TEXTURE_2D,hatch_tex[i]);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-        //glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,twidth,theight,0,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
-        gluBuild2DMipmaps(GL_TEXTURE_2D,GL_RGBA,twidth,theight,GL_RGBA,GL_UNSIGNED_BYTE,hatch_pic[i]);
-        //glGenerateMipmap(GL_TEXTURE_2D);
-        glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-}
-
-
-
-void hatching_t::init_light()
+//
+// the setup of light color is put in shader file, which is shaders/ps_phong.glsl
+void effect_t::init_light()
 {
     lights.clear();
 
@@ -696,69 +483,55 @@ void hatching_t::init_light()
     // set eye light
     light_t eye_light;
     eye_light.moveTo(eye);
-    eye_light.set_ambient(  vector_t(0.0, 0.0, 0.0, 1.0) );
-    eye_light.set_diffuse(  vector_t(0.45, 0.45, 0.45, 1.0) );
-    eye_light.set_specular( vector_t(1.0, 1.0, 1.0, 1.0) );
     //eye_light.off();
 
     // set overhead light
     overhead = center;
-    overhead.y += 0.5 * (tr->m_maxCoord[1] - tr->m_minCoord[1]);
+    overhead.y += (tr->m_maxCoord[1] - tr->m_minCoord[1]);
     light_t overhead_light;
     overhead_light.moveTo(overhead);
-    overhead_light.set_ambient(  vector_t(0.1, 0.1, 0.1, 1.0) );
-    overhead_light.set_diffuse(  vector_t(0.1, 0.1, 0.1, 1.0) );
-    overhead_light.set_specular( vector_t(1.0, 1.0, 1.0, 1.0) );
     //overhead_light.off();
 
     // set left top light
     lefttop = overhead;
-    lefttop.x -= 0.5 * (tr->m_maxCoord[0] - tr->m_minCoord[0]);
+    lefttop.x -= (tr->m_maxCoord[0] - tr->m_minCoord[0]);
+    lefttop.y += (tr->m_maxCoord[1] - tr->m_minCoord[1]);
     light_t lt_light;
     lt_light.moveTo(lefttop);
-    lt_light.set_ambient(  vector_t(0.0, 0.0, 0.0, 1.0) );
-    lt_light.set_diffuse(  vector_t(0.1, 0.1, 0.1, 1.0) );
-    lt_light.set_specular( vector_t(1.0, 1.0, 1.0, 1.0) );
     //lt_light.off();
 
     // set right top light
     righttop = overhead;
-    righttop.x += 0.5 * (tr->m_maxCoord[0] - tr->m_minCoord[0]);
+    righttop.x += (tr->m_maxCoord[0] - tr->m_minCoord[0]);
+    righttop.y += (tr->m_maxCoord[1] - tr->m_minCoord[1]);
     light_t rt_light;
     rt_light.moveTo(righttop);
-    rt_light.set_ambient(  vector_t(0.0, 0.0, 0.0, 1.0) );
-    rt_light.set_diffuse(  vector_t(0.1, 0.1, 0.1, 1.0) );
-    rt_light.set_specular( vector_t(1.0, 1.0, 1.0, 1.0) );
     //rt_light.off();
 
     lights.push_back(eye_light);
     lights.push_back(overhead_light);
     lights.push_back(lt_light);
     lights.push_back(rt_light);
-
-
-    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
 }
 
-void hatching_t::init_material()
+// do not set diffuse material, because we used glcolormaterial
+void effect_t::init_material()
 {
-    mat_diffuse[0] = mat_diffuse[1] = mat_diffuse[2] = 1.f;
-    mat_diffuse[3] = 1.0f;
-
     mat_specular[0] = mat_specular[1] = mat_specular[2] = mat_specular[3] = 1.0f;
 
-    mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.1f;
+    mat_ambient[0] = mat_ambient[1] = mat_ambient[2] = 0.2f;
     mat_ambient[3] = 1.0f;
 
     shininess = 128.0f;
 }
+
 
 // the length of shadow is related with the distance between two tubes
 // we use exponential relationship here
 // the function is: dist = (maxdist + 1)^(slen/max_slen) - 1
 // here we use slen+slen_step instead of slen
 // inorder to  map to larger interval of dist
-void hatching_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
+void effect_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
 {
     float max_dist = tr->m_fbdRadius *2.f; 
 
@@ -769,12 +542,12 @@ void hatching_t::calc_shadow_len_threshold(GLfloat shadow_len_step)
         shadow_len_threshold.push_back(dist);
     }
 
-    //for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
-        //printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
+    for(GLuint i = 0; i < shadow_len_threshold.size(); ++i)
+        printf("distance between tube threshold:%f\n", shadow_len_threshold[i]);
 }
 
 
-void hatching_t::init_misc()
+void effect_t::init_misc()
 {
     GLfloat slen_step = (MAX_SHADOW_LEN - MIN_SHADOW_LEN) / RELOC_NUM;
 
@@ -787,24 +560,25 @@ void hatching_t::init_misc()
         shadow_length += slen_step;
     }
 
-    //for(GLuint i = 0; i < relocation_level.size(); ++i)
-        //printf("shadow length levels:%f\n", relocation_level[i]);
+    for(GLuint i = 0; i < relocation_level.size(); ++i)
+        printf("shadow length levels:%f\n", relocation_level[i]);
     calc_shadow_len_threshold(slen_step);
 }
 
-void hatching_t::init_hatching()
+void effect_t::init_phong()
 {
     //use_color_tex = true;
     use_color_tex = false;
-    generateShadowFBO();
+    if(depth_based_shadow)
+        generateShadowFBO();
+
     init_shader();
-    read_tonal_art_maps();
     init_misc();
     init_light();
     init_material();
 }
 
-void hatching_t::print_error()
+void effect_t::print_error()
 {
     GLenum error = glGetError();
     printf("error code: %d, %x\n", error, error);
