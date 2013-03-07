@@ -169,7 +169,7 @@ function taskflag()
 function updatetaskprog()
 {
 	let "TASKNO += 1"
-	echo -e "\n\n       $TASKNO / 20" > ${TASKPROGIDFILE}
+	echo -e "\n\n       $TASKNO / 600" > ${TASKPROGIDFILE}
 }
 
 #-----------------------------------------#
@@ -197,149 +197,230 @@ function task1()
 {
 	taskflag 1
 
-	FBARRARY=( $(echo "cst cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-	echo "focus order:" ${FBARRARY[*]} >> $LOG
-
-	local di=0
     local halo=0
     local shadow=0
+    local cst=0
+    local cc=0
+    local ifo=0
+    local ilf=0
 
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
-        let "di=0"
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
 
-        for n in ${CURORDER}
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURFB=${FIBERBUNDLES[$((n-1))]}
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
+
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
+
+            tec=${TECHS[$i]}
+
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
             flip=0
             if [ "$CURFB" == "cst" ];then
                 flip=1
             fi
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+
+            ${BINDIR}/task1/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/tumorbox_1_region_s${fixres}.data \
+                -t ${BINDIR}/task1/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -i ${flip} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
+
+            if [ $? -ne 0 ];then
+                return 3
+            fi
+    done
+        echo -e "\n Technique complete...\n" >> $LOG
 
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
 
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
-
-                #echo "tech is:"${tec} >> $LOG
-
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
-
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task1/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/tumorbox_1_region_s${fixres}.data \
-                    -t ${BINDIR}/task1/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -i ${flip} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
-        done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
 
         # the same participant does the second block of task data
-        for n in ${CURORDER}
+        for((i=0;i<48;++i))
         do
-            updatetaskprog
-            #CURFB=${FIBERBUNDLES[$n]}
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
+
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
+
+            tec=${TECHS[$i]}
+
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
             flip=0
             if [ "$CURFB" == "cst" ];then
                 flip=1
             fi
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
 
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            ${BINDIR}/task1/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/tumorbox_0_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/tumorbox_1_region_s${fixres}.data \
+                -t ${BINDIR}/task1/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -i ${flip} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if [ $? -ne 0 ];then
+                return 3
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task1/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/tumorbox_0_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task1/s${fixres}/${CURFB}/pos1/tumorbox_1_region_s${fixres}.data \
-                    -t ${BINDIR}/task1/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -i ${flip} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
+
     done
     return 0
 }
@@ -358,158 +439,251 @@ function task2()
     local keys3=(3 2 3 2 3)
     local keys4=(2 2 3 2 3)
 
-    sfb=(cst cc ifo ilf)
-    dices=( $(echo "0 1 2 3" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-    FBARRARY=( ${sfb[${dices[0]}]} ${sfb[${dices[1]}]} ${sfb[${dices[2]}]} ${sfb[${dices[3]}]} )
-    echo "focus order:" ${FBARRARY[*]} >> $LOG
-
-    local di=0
     local halo=0
     local shadow=0
+    local cst=0
+    local cc=0
+    local ifo=0
+    local ilf=0
+
+
+    #sfb=(cst cc ifo ilf)
+    #dices=( $(echo "0 1 2 3" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+    #FBARRARY=( ${sfb[${dices[0]}]} ${sfb[${dices[1]}]} ${sfb[${dices[2]}]} ${sfb[${dices[3]}]} )
+    #echo "focus order:" ${FBARRARY[*]} >> $LOG
 
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
-        let "di=0"
-        for n in ${CURORDER}
+
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURKEY=$(eval echo \${keys$((n))[$((fixres-1))]})
-            #CURFB=${FIBERBUNDLES[$n]}
 
-            CURKEY=$(eval echo \${keys$((${dices[$di]}+1))[$((fixres-1))]})
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+            tec=${TECHS[$i]}
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            echo "tech is:"${tec} >> $LOG
 
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
 
-                #echo "tech is:"${tec} >> $LOG
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+                CURKEY=$(eval echo \${keys1[$((fixres-1))]})
+            fi
 
-                ${BINDIR}/task2/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/fiberidx_*_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_1_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_2_region_s${fixres}.data \
-                    -t ${BINDIR}/task2/tasktext \
-                    -k ${CURKEY} \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+                CURKEY=$(eval echo \${keys2[$((fixres-1))]})
+            fi
 
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+                CURKEY=$(eval echo \${keys3[$((fixres-1))]})
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+                CURKEY=$(eval echo \${keys4[$((fixres-1))]})
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+
+            ${BINDIR}/task2/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/fiberidx_*_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_1_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/tumorbox_2_region_s${fixres}.data \
+                -t ${BINDIR}/task2/tasktext \
+                -k ${CURKEY} \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
+
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
 
+
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
 
         # the same participant does the second block of task data
-        for n in ${CURORDER}
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURKEY=$(eval echo \${keys$((n))[$((fixres-1))]})
-            #CURFB=${FIBERBUNDLES[$n]}
 
-            CURKEY=$(eval echo \${keys$((${dices[$di]}+1))[$((fixres-1))]})
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+            tec=${TECHS[$i]}
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            echo "tech is:"${tec} >> $LOG
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
 
-                #echo "tech is:"${tec} >> $LOG
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+                CURKEY=$(eval echo \${keys1[$((fixres-1))]})
+            fi
 
-                ${BINDIR}/task2/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/fiberidx_*_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_0_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_1_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_2_region_s${fixres}.data \
-                    -t ${BINDIR}/task2/tasktext \
-                    -k ${CURKEY} \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+                CURKEY=$(eval echo \${keys2[$((fixres-1))]})
+            fi
 
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+                CURKEY=$(eval echo \${keys3[$((fixres-1))]})
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+                CURKEY=$(eval echo \${keys4[$((fixres-1))]})
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+
+            ${BINDIR}/task2/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/fiberidx_*_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_0_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_1_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task2/s${fixres}/${CURFB}/pos1/tumorbox_2_region_s${fixres}.data \
+                -t ${BINDIR}/task2/tasktext \
+                -k ${CURKEY} \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
+
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
-
+        echo -e "\n Technique complete...\n" >> $LOG
     done
     return 0
 }
@@ -523,139 +697,239 @@ function task3()
 {
     taskflag 3
 
-    sfb=(cst cc ifo ilf)
-    dices=( $(echo "0 1 2 3" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-    FBARRARY=( ${sfb[${dices[0]}]} ${sfb[${dices[1]}]} ${sfb[${dices[2]}]} ${sfb[${dices[3]}]} )
-    echo "focus order:" ${FBARRARY[*]} >> $LOG
+    #sfb=(cst cc ifo ilf)
+    #dices=( $(echo "0 1 2 3" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+    #FBARRARY=( ${sfb[${dices[0]}]} ${sfb[${dices[1]}]} ${sfb[${dices[2]}]} ${sfb[${dices[3]}]} )
+    #echo "focus order:" ${FBARRARY[*]} >> $LOG
 
-    local di=0
+
     local halo=0
     local shadow=0
+    local cst=0
+    local cc=0
+    local ifo=0
+    local ilf=0
+
 
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
-        let "di=0"
-        for n in ${CURORDER}
+
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURFB=${FIBERBUNDLES[$n]}
-            CURFB=${FBARRARY[$di]}
 
-            let "di += 1"
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            tec=${TECHS[$i]}
 
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
+            echo "tech is:"${tec} >> $LOG
 
-                #echo "tech is:"${tec} >> $LOG
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
 
-                ${BINDIR}/task3/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/fiberidx_*_region_s${fixres}.data \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -k $((${dices[$di]}+1)) \
-                    -t ${BINDIR}/task3/tasktext \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+                CURKEY=1
+            fi
 
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+                CURKEY=2
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+                CURKEY=3
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+                CURKEY=4
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+
+            ${BINDIR}/task3/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/fiberidx_*_region_s${fixres}.data \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -k ${CURKEY} \
+                -t ${BINDIR}/task3/tasktext \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
+
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
 
-        # the same participant does the second block of task data
-        for n in ${CURORDER}
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURFB=${FIBERBUNDLES[$n]}
-            CURFB=${FBARRARY[$di]}
 
-            let "di += 1"
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            tec=${TECHS[$i]}
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
+            echo "tech is:"${tec} >> $LOG
 
-                #echo "tech is:"${tec} >> $LOG
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
 
-                ${BINDIR}/task3/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/fiberidx_*_region_s${fixres}.data \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -k $((${dices[$di]}+1)) \
-                    -t ${BINDIR}/task3/tasktext \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+                CURKEY=1
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+                CURKEY=2
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+                CURKEY=3
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+                CURKEY=4
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
 
 
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+
+            ${BINDIR}/task3/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task3/s${fixres}/${CURFB}/pos1/fiberidx_*_region_s${fixres}.data \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -k ${CURKEY} \
+                -t ${BINDIR}/task3/tasktext \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
+
+
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
     done
     return 0
 }
@@ -669,111 +943,201 @@ function task4()
 {
     taskflag 4
 
-    FBARRARY=( $(echo "cst cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-	echo "focus order:" ${FBARRARY[*]} >> $LOG
-
-	local di=0
     local halo=0
     local shadow=0
+    local cst=0
+    local cc=0
+    local ifo=0
+    local ilf=0
 
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
-        let "di=0"
-        for n in ${CURORDER}
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            #CURFB=${FIBERBUNDLES[$n]}
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
+
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
+
+            tec=${TECHS[$i]}
+
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
 
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
 
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
-                #echo "tech is:"${tec} >> $LOG
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            ${BINDIR}/task4/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
+                -j \
+                ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
+                -t ${BINDIR}/task4/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task4/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
-                    -j \
-                    ${NORMALCASEDATADIR}/region_for_task4/s${fixres}/${CURFB}/tumorbox_0_region_s${fixres}.data \
-                    -t ${BINDIR}/task4/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
+            if [ $? -ne 0 ];then
                     return 3
                 fi
             done
             echo -e "\n Technique complete...\n" >> $LOG
-        done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
 
+
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+        echo -e "\n##### with Normal case #####" >> $LOG
+        echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
 
         # the same participant does the second block of task data
-        for n in ${CURORDER}
+        for((i=0;i<48;++i))
         do
-            updatetaskprog
-            #CURFB=${FIBERBUNDLES[$n]}
-            CURFB=${FBARRARY[$di]}
-            let "di += 1"
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-            echo -e "\n##### with Normal case #####" >> $LOG
-            echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
+            tec=${TECHS[$i]}
 
-                #echo "tech is:"${tec} >> $LOG
+            echo "tech is:"${tec} >> $LOG
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
 
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
 
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
+
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
                 ${BINDIR}/task4/singleitr \
                     -f \
@@ -795,9 +1159,6 @@ function task4()
                 fi
             done
             echo -e "\n Technique complete...\n" >> $LOG
-        done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
-
     done
     return 0
 }
@@ -823,32 +1184,102 @@ function task5()
     local binchoices9=(yes no yes no yes)
     local binchoices10=(yes yes no yes yes)
 
-    FBARRARY=( $(echo "cst cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-	echo "focus order:" ${FBARRARY[*]} >> $LOG
 
-	local di=0
     local halo=0
     local shadow=0
+    local cst=0
+    local cc=0
+    local ifo=0
+    local ilf=0
+    local id=0
+
 
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
         let "pidx = pi + 1"
         let "pidx2 = pidx + $NUMCOL"
-        let "di=0"
 
-        #for ((i=0;i<$NUMCOL;i++))
-        for((i=0;i<2;++i))
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
 
-            #let "index = $pi * $NUMCOL + $i"
-            #n=${ORDERARRAY[index]}
-            #CURFB=${FIBERBUNDLES[$n]}
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            CURFB=${FBARRARY[$di]}
-            CURCHOICE=$(eval echo \${binchoices${pidx}[$di]})
+            tec=${TECHS[$i]}
 
-            let "di += 1"
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+            let "id=i % 4"
+            CURCHOICE=$(eval echo \${binchoices${pidx}[$id]})
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
             echo -e "\n##### with Normal case #####" >> $LOG
             echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
@@ -858,72 +1289,113 @@ function task5()
                 FIBERIDXFILE="fiberidx_compound_region_s${fixres}.data"
             fi
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
-
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
-
-                #echo "tech is:"${tec} >> $LOG
-
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
-
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
 
-                ${BINDIR}/task5/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/${CURCHOICE}/${FIBERIDXFILE} \
-                    -t ${BINDIR}/task5/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
+            ${BINDIR}/task5/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/${CURCHOICE}/${FIBERIDXFILE} \
+                -t ${BINDIR}/task5/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
 
 
         # the same participant does the second block of task data
-        #for ((i=0;i<$NUMCOL;i++))
-        for((i=0;i<2;++i))
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
 
-            #let "index = $pi * $NUMCOL + $i"
-            #n=${ORDERARRAY[index]}
-            #CURFB=${FIBERIDXFILE[$n]}
-            #CURCHOICE=$(eval echo \${binchoices${pidx2}[$i]})
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "ifo=0"
+            let "ilf=0"
 
-            CURFB=${FBARRARY[$di]}
-            CURCHOICE=$(eval echo \${binchoices${pidx}[$di]})
+            tec=${TECHS[$i]}
 
-            let "di += 1"
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+            let "id=i % 4"
+            CURCHOICE=$(eval echo \${binchoices${pidx}[$id]})
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
             echo -e "\n##### with Normal case #####" >> $LOG
             echo "##### under seeding resolution of ${fixres}x${fixres}x${fixres} #####" >> $LOG
@@ -933,56 +1405,29 @@ function task5()
                 FIBERIDXFILE="fiberidx_compound_region_s${fixres}.data"
             fi
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
+            ${BINDIR}/task5/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/${CURCHOICE}/${FIBERIDXFILE} \
+                -t ${BINDIR}/task5/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                #echo "tech is:"${tec} >> $LOG
-
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
-
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task5/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/region_s${fixres}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/skeleton_region_s${fixres}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task5/s${fixres}/${CURFB}/pos1/${CURCHOICE}/${FIBERIDXFILE} \
-                    -t ${BINDIR}/task5/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
-
+        echo -e "\n Technique complete...\n" >> $LOG
     done
     return 0
 }
@@ -1008,25 +1453,102 @@ function task6()
     local trichoices9=(nocut leftcut leftcut rightcut nocut)
     local trichoices10=(rightcut rightcut leftcut nocut rightcut)
 
+    local halo=0
+    local shadow=0
+    local cst=0
+    local cc=0
+    local cg=0
+    local ifo=0
+    local ilf=0
+    local id=0
+    local n=${fixres}
+
+
     for NORMALCASEDATADIR in  ${ALLNORMALCASEDATADIRS}
     do
         let "pidx = pi + 1"
         let "pidx2 = pidx + $NUMCOL"
-        let "di=0"
 
-        FBARRARY=( $(echo "cst cg cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-        echo "focus order:" ${FBARRARY[*]} >> $LOG
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf phong_cg phong_halo_cg phong_des_cg phong_des_halo_cg tone_cg tone_halo_cg tone_des_cg tone_des_halo_cg hatching_cg hatching_halo_cg hatching_des_cg hatching_des_halo_cg" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
 
-        local di=0
-        local halo=0
-        local shadow=0
 
-        for n in ${CURORDER}
+        #FBARRARY=( $(echo "cst cg cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+        #echo "focus order:" ${FBARRARY[*]} >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            CURFB=${FBARRARY[$di]}
-            CURCHOICE=$(eval echo \${trichoices${pidx}[$di]})
 
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "cg=0"
+            let "ifo=0"
+            let "ilf=0"
+
+            tec=${TECHS[$i]}
+
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_cg=( $( echo ${tec} | grep -o "_cg") )
+            if [ "${if_cg}" == "_cg" ];then
+                let "cg=1"
+                tec=($(echo ${tec} | sed 's/_cg//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${cg} -eq 1 ];then
+                CURFB="cg"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+            # change curfb according to task requirement
             if [ $CURFB = "cc" ];then
                 CURFB="ilf"
             fi
@@ -1035,73 +1557,134 @@ function task6()
                 CURFB="cst"
             fi
 
-            let "di += 1"
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+            let "id=i % 4"
+            CURCHOICE=$(eval echo \${trichoices${pidx}[$id]})
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
             echo -e "\n##### with Normal case #####" >> $LOG
             echo "##### under seeding resolution of ${n}x${n}x${n} #####" >> $LOG
             echo "#####    when the choice is $CURCHOICE #### ">> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
-            # for each technique
-            for tec_id in {0..11}
-            do
-                let "halo=0"
-                let "shadow=0"
-                tec=${TECHS[$tec_id]}
 
-                #echo "tech is:"${tec} >> $LOG
+            ${BINDIR}/task6/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/region_s${n}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/fiberidx_${CURCHOICE}_s${n}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/skeleton_region_s${n}.data \
+                -t ${BINDIR}/task6/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
-
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task6/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/region_s${n}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/fiberidx_${CURCHOICE}_s${n}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/skeleton_region_s${n}.data \
-                    -t ${BINDIR}/task6/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
 
 
         # the same participant does the second block of task data
-        FBARRARY=( $(echo "cst cg cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
-        echo "focus order:" ${FBARRARY[*]} >> $LOG
-        di=0
 
-        for n in ${CURORDER}
+        TECHS=( $(echo "phong_cst phong_halo_cst phong_des_cst phong_des_halo_cst tone_cst tone_halo_cst tone_des_cst tone_des_halo_cst hatching_cst hatching_halo_cst hatching_des_cst hatching_des_halo_cst phong_cc phong_halo_cc phong_des_cc phong_des_halo_cc tone_cc tone_halo_cc tone_des_cc tone_des_halo_cc hatching_cc hatching_halo_cc hatching_des_cc hatching_des_halo_cc phong_ifo phong_halo_ifo phong_des_ifo phong_des_halo_ifo tone_ifo tone_halo_ifo tone_des_ifo tone_des_halo_ifo hatching_ifo hatching_halo_ifo hatching_des_ifo hatching_des_halo_ifo phong_ilf phong_halo_ilf phong_des_ilf phong_des_halo_ilf tone_ilf tone_halo_ilf tone_des_ilf tone_des_halo_ilf hatching_ilf hatching_halo_ilf hatching_des_ilf hatching_des_halo_ilf phong_cg phong_halo_cg phong_des_cg phong_des_halo_cg tone_cg tone_halo_cg tone_des_cg tone_des_halo_cg hatching_cg hatching_halo_cg hatching_des_cg hatching_des_halo_cg" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+
+        #FBARRARY=( $(echo "cst cg cc ifo ilf" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+        #echo "focus order:" ${FBARRARY[*]} >> $LOG
+
+        for((i=0;i<48;++i))
         do
             updatetaskprog
-            CURFB=${FBARRARY[$di]}
-            CURCHOICE=$(eval echo \${trichoices${pidx2}[$di]})
 
+            let "halo=0"
+            let "shadow=0"
+            let "cst=0"
+            let "cc=0"
+            let "cg=0"
+            let "ifo=0"
+            let "ilf=0"
+
+            tec=${TECHS[$i]}
+
+            echo "tech is:"${tec} >> $LOG
+
+            # first get bundle name
+            if_cst=( $( echo ${tec} | grep -o "_cst") )
+            if [ "${if_cst}" == "_cst" ];then
+                let "cst=1"
+                tec=($(echo ${tec} | sed 's/_cst//g'))
+            fi
+
+            if_cc=( $( echo ${tec} | grep -o "_cc") )
+            if [ "${if_cc}" == "_cc" ];then
+                let "cc=1"
+                tec=($(echo ${tec} | sed 's/_cc//g'))
+            fi
+
+            if_cg=( $( echo ${tec} | grep -o "_cg") )
+            if [ "${if_cg}" == "_cg" ];then
+                let "cg=1"
+                tec=($(echo ${tec} | sed 's/_cg//g'))
+            fi
+
+            if_ifo=( $( echo ${tec} | grep -o "_ifo") )
+            if [ "${if_ifo}" == "_ifo" ];then
+                let "ifo=1"
+                tec=($(echo ${tec} | sed 's/_ifo//g'))
+            fi
+
+            if_ilf=( $( echo ${tec} | grep -o "_ilf") )
+            if [ "${if_ilf}" == "_ilf" ];then
+                let "ilf=1"
+                tec=($(echo ${tec} | sed 's/_ilf//g'))
+            fi
+
+
+            if [ ${cst} -eq 1 ];then
+                CURFB="cst"
+            fi
+
+            if [ ${cc} -eq 1 ];then
+                CURFB="cc"
+            fi
+
+            if [ ${cg} -eq 1 ];then
+                CURFB="cg"
+            fi
+
+            if [ ${ifo} -eq 1 ];then
+                CURFB="ifo"
+            fi
+
+            if [ ${ilf} -eq 1 ];then
+                CURFB="ilf"
+            fi
+
+            flip=0
+            if [ "$CURFB" == "cst" ];then
+                flip=1
+            fi
+
+            # change curfb according to task requirement
             if [ $CURFB = "cc" ];then
                 CURFB="ilf"
             fi
@@ -1109,60 +1692,51 @@ function task6()
             if [ $CURFB = "ifo" ];then
                 CURFB="cst"
             fi
-            let "di += 1"
 
-            TECHS=( $(echo "phong phong_halo phong_des phong_des_halo tone tone_halo tone_des tone_des_halo hatching hatching_halo hatching_des hatching_des_halo" | sed -r 's/(.[^;]*;)/ \1 /g' | tr " " "\n" | shuf | tr -d " " ) )
+
+            let "id=i % 4"
+            CURCHOICE=$(eval echo \${trichoices${pidx2}[$id]})
+
+
+            # get the technique
+            if_halo=( $( echo ${tec} | grep -o "halo") )
+            if [ "${if_halo}" == "halo" ];then
+                let "halo=1"
+                tec=($(echo ${tec} | sed 's/_halo//g'))
+            fi
+
+            if_shadow=( $( echo ${tec} | grep -o "des") )
+            if [ "${if_shadow}" == "des" ];then
+                let "shadow=1"
+                tec=($(echo ${tec} | sed 's/_des//g'))
+            fi
 
             echo -e "\n##### with Normal case #####" >> $LOG
             echo "##### under seeding resolution of ${n}x${n}x${n} #####" >> $LOG
             echo "#####    when the choice is $CURCHOICE #### ">> $LOG
-            echo "##### technique order:" ${TECHS[*]} >> $LOG
+            echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
 
-            # for each technique
-            for tec_id in {0..11} 
-            do
-                let "shadow=0"
-                let "halo=0"
-                tec=${TECHS[$tec_id]}
 
-                #echo "tech is:"${tec} >> $LOG
+            ${BINDIR}/task6/singleitr \
+                -f \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/region_s${n}.data \
+                -i \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/fiberidx_${CURCHOICE}_s${n}.data \
+                -s \
+                ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/skeleton_region_s${n}.data \
+                -t ${BINDIR}/task6/tasktext \
+                -p ${TASKPROGIDFILE} \
+                -r ${TUBERADIUS} \
+                -a ${halo} \
+                -w ${shadow} \
+                -q ${tec} \
+                -V 1>> $LOG 2>&1
 
-                if_halo=( $( echo ${tec} | grep -o "halo") )
-                if [ "${if_halo}" == "halo" ];then
-                    let "halo=1"
-                    tec=($(echo ${tec} | sed 's/_halo//g'))
-                fi
-
-                if_shadow=( $( echo ${tec} | grep -o "des") )
-                if [ "${if_shadow}" == "des" ];then
-                    let "shadow=1"
-                    tec=($(echo ${tec} | sed 's/_des//g'))
-                fi
-
-                echo "curfb:"${CURFB}  "technique:" ${tec} "halo:"${halo} "shaow:"${shadow} >> $LOG
-
-                ${BINDIR}/task6/singleitr \
-                    -f \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/region_s${n}.data \
-                    -i \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/fiberidx_${CURCHOICE}_s${n}.data \
-                    -s \
-                    ${NORMALCASEDATADIR}/region_for_task6/s${n}/${CURFB}/pos1/skeleton_region_s${n}.data \
-                    -t ${BINDIR}/task6/tasktext \
-                    -p ${TASKPROGIDFILE} \
-                    -r ${TUBERADIUS} \
-                    -a ${halo} \
-                    -w ${shadow} \
-                    -q ${tec} \
-                    -V 1>> $LOG 2>&1
-
-                if [ $? -ne 0 ];then
-                    return 3
-                fi
-            done
-            echo -e "\n Technique complete...\n" >> $LOG
+            if [ $? -ne 0 ];then
+                return 3
+            fi
         done
-        echo -e "\n Fiber bundle complete...\n" >> $LOG
+        echo -e "\n Technique complete...\n" >> $LOG
 
     done
     return 0
