@@ -361,7 +361,7 @@ int CGLApp::mainstay()
 	glutMouseFunc(_mouseResponse);
 	glutMotionFunc(_mouseMotionResponse);
 	glutPassiveMotionFunc(_mousePassiveMotionResponse);
-    glutMouseWheelFunc(_mouseWheelRollResponse);
+    //glutMouseWheelFunc(_mouseWheelRollResponse);
 	glutKeyboardFunc(_keyResponse);
 	glutSpecialFunc(_specialResponse);
 	glutReshapeFunc(_onReshape);

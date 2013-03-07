@@ -1230,7 +1230,7 @@ fi
 
 pi=$1
 
-fixres=2
+fixres=3
 if [ $# -ge 2 ];then
     fixres=$2
 fi

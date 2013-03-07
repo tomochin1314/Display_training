@@ -11,7 +11,7 @@
  * Include necessary headers.
  */
 
-#  include <GL/freeglut.h>
+#  include <GL/glut.h>
 #  ifdef WIN32
 #    include <windows.h>
 #    include <wingdi.h>

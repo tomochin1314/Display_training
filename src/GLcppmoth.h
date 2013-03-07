@@ -155,7 +155,7 @@
 #include "cppmoth.h"
 #include "GLgadget.h"
 #include <X11/Xlib.h>
-#include <GL/freeglut.h>
+#include <GL/glut.h>
 
 using std::string;
 using std::vector;
